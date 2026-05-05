@@ -104,7 +104,15 @@ var (
 		},
 		"tempestobs": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			tid := i.ApplicationCommandData().Options[0].StringValue()
-			output, _, _ := TempestTemp(tid)
+			timestamp, temp, dewpoint, feelslike, barpressure, pressuretrend, _, _, color := TempestObs(tid)
+
+			loc, err := time.LoadLocation("America/New_York")
+			if err != nil {
+				loc = time.UTC // fallback
+			}
+
+			t := time.Unix(timestamp, 0).In(loc)
+			formattedTime := t.Format("15:04:05")
 
 			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -112,8 +120,8 @@ var (
 					Embeds: []*discordgo.MessageEmbed{
 						{
 							Title:       fmt.Sprintf("Observations at Station - %v", tid),
-							Description: fmt.Sprintf("Temperature: %.2f", output),
-							Color:       0,
+							Description: fmt.Sprintf("Time: %v\nTemperature: %.2f\nDew Point: %.2f\nFeels Like: %.2f\nBarometric Pressure: %.2f\nPressure Trend: %v", formattedTime, temp, dewpoint, feelslike, barpressure, pressuretrend),
+							Color:       color,
 						},
 					},
 				},

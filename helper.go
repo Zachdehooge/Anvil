@@ -14,7 +14,12 @@ type Response struct {
 }
 
 type Observations struct {
-	Temperature float64 `json:"air_temperature"`
+	Time               int64   `json:"timestamp"`
+	Temperature        float64 `json:"air_temperature"`
+	DewPoint           float64 `json:"dew_point"`
+	FeelsLike          float64 `json:"feels_like"`
+	BarometricPressure float64 `json:"barometric_pressure"`
+	PressureTrend      string  `json:"pressure_trend"`
 }
 
 func TempestStatus(tid string) (int, int, string) {
@@ -42,10 +47,10 @@ func TempestStatus(tid string) (int, int, string) {
 	return resp.StatusCode, 0xFF0000, string(b)
 }
 
-func TempestTemp(tid string) (float64, string, int) {
+func TempestObs(tid string) (int64, float64, float64, float64, float64, string, string, int, int) {
 	var TempestToken = os.Getenv("TEMPEST_TOKEN")
 
-	status, _, _ := TempestStatus(tid)
+	status, color, _ := TempestStatus(tid)
 
 	url := "https://swd.weatherflow.com/swd/rest/observations/station/" + tid + "?token=" + TempestToken
 	resp, err := http.Get(url)
@@ -62,7 +67,7 @@ func TempestTemp(tid string) (float64, string, int) {
 	}
 
 	if status == 200 {
-		return (data.Observations[0].Temperature * 1.8) + 32, "", status
+		return data.Observations[0].Time, (data.Observations[0].Temperature * 1.8) + 32, data.Observations[0].DewPoint, data.Observations[0].FeelsLike, data.Observations[0].BarometricPressure, data.Observations[0].PressureTrend, "", status, color
 	}
-	return 0, "TempestTemp() did not return a value", status
+	return 0, 0, 0, 0, 0, "", "Tempest did not return a value", 0, color
 }
