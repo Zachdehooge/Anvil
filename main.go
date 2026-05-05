@@ -47,14 +47,14 @@ var (
 		{
 			Name:        "tempestobs",
 			Description: "Temperature at a tempest ID",
-			Options: []*discordgo.ApplicationCommandOption{
+			/*Options: []*discordgo.ApplicationCommandOption{
 				{
 					Type:        discordgo.ApplicationCommandOptionString,
 					Name:        "tid",
 					Description: "tempest ID",
 					Required:    true,
 				},
-			},
+			},*/
 		},
 		{
 			Name:        "help",
@@ -103,7 +103,7 @@ var (
 			})
 		},
 		"tempestobs": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			tid := i.ApplicationCommandData().Options[0].StringValue()
+			tid := "212384"
 			timestamp, temp, dewpoint, feelslike, barpressure, pressuretrend, _, _, color := TempestObs(tid)
 
 			loc, err := time.LoadLocation("America/New_York")
@@ -120,7 +120,7 @@ var (
 					Embeds: []*discordgo.MessageEmbed{
 						{
 							Title:       fmt.Sprintf("Observations at Station - %v", tid),
-							Description: fmt.Sprintf("Time: %v\nTemperature: %.2f\nDew Point: %.2f\nFeels Like: %.2f\nBarometric Pressure: %.2f\nPressure Trend: %v", formattedTime, temp, dewpoint, feelslike, barpressure, pressuretrend),
+							Description: fmt.Sprintf("Time: %v\nTemperature: %.2f°F\nDew Point: %.2f°F\nFeels Like: %.2f°F\nBarometric Pressure: %.2f\nPressure Trend: %v", formattedTime, temp, dewpoint, feelslike, barpressure, pressuretrend),
 							Color:       color,
 						},
 					},

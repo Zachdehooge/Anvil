@@ -66,8 +66,10 @@ func TempestObs(tid string) (int64, float64, float64, float64, float64, string, 
 		panic(err)
 	}
 
-	if status == 200 {
-		return data.Observations[0].Time, (data.Observations[0].Temperature * 1.8) + 32, data.Observations[0].DewPoint, data.Observations[0].FeelsLike, data.Observations[0].BarometricPressure, data.Observations[0].PressureTrend, "", status, color
+	if status == 200 && len(data.Observations) > 0 {
+		obs := data.Observations[0]
+		return obs.Time, (obs.Temperature * 1.8) + 32, (obs.DewPoint * 1.8) + 32, (obs.FeelsLike * 1.8) + 32, obs.BarometricPressure, obs.PressureTrend, "", status, color
 	}
+
 	return 0, 0, 0, 0, 0, "", "Tempest did not return a value", 0, color
 }
