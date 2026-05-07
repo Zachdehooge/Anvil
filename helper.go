@@ -16,6 +16,8 @@ type Response struct {
 type Observations struct {
 	Time               int64   `json:"timestamp"`
 	Temperature        float64 `json:"air_temperature"`
+	PrecipToday        float64 `json:"precip_accum_local_day_final"`
+	PrecipYesterday    float64 `json:"precip_accum_local_yesterday_final"`
 	DewPoint           float64 `json:"dew_point"`
 	FeelsLike          float64 `json:"feels_like"`
 	BarometricPressure float64 `json:"barometric_pressure"`
@@ -47,7 +49,7 @@ func TempestStatus(tid string) (int, int, string) {
 	return resp.StatusCode, 0xFF0000, string(b)
 }
 
-func TempestObs(tid string) (int64, float64, float64, float64, float64, string, string, int, int) {
+func TempestObs(tid string) (int64, float64, float64, float64, float64, string, float64, float64, string, int, int) {
 	var TempestToken = os.Getenv("TEMPEST_TOKEN")
 
 	status, color, _ := TempestStatus(tid)
@@ -68,8 +70,8 @@ func TempestObs(tid string) (int64, float64, float64, float64, float64, string, 
 
 	if status == 200 && len(data.Observations) > 0 {
 		obs := data.Observations[0]
-		return obs.Time, (obs.Temperature * 1.8) + 32, (obs.DewPoint * 1.8) + 32, (obs.FeelsLike * 1.8) + 32, obs.BarometricPressure, obs.PressureTrend, "", status, color
+		return obs.Time, (obs.Temperature * 1.8) + 32, (obs.DewPoint * 1.8) + 32, (obs.FeelsLike * 1.8) + 32, obs.BarometricPressure, obs.PressureTrend, (obs.PrecipToday / 25.4), (obs.PrecipYesterday / 25.4), "", status, color
 	}
 
-	return 0, 0, 0, 0, 0, "", "Tempest did not return a value", 0, color
+	return 0, 0, 0, 0, 0, "0", 0, 0, "Tempest did not return a value", 0, color
 }

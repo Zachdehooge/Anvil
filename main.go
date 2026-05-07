@@ -78,7 +78,7 @@ var (
 			})
 		},
 		"tempeststatus": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			tid := i.ApplicationCommandData().Options[0].StringValue()
+			tid := "212384"
 			status, color, terr := TempestStatus(tid)
 
 			var output = ""
@@ -104,7 +104,7 @@ var (
 		},
 		"tempestobs": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			tid := "212384"
-			timestamp, temp, dewpoint, feelslike, barpressure, pressuretrend, _, _, color := TempestObs(tid)
+			timestamp, temp, dewpoint, feelslike, barpressure, pressuretrend, preciptoday, precipyesterday, _, _, color := TempestObs(tid)
 
 			loc, err := time.LoadLocation("America/New_York")
 			if err != nil {
@@ -120,7 +120,7 @@ var (
 					Embeds: []*discordgo.MessageEmbed{
 						{
 							Title:       fmt.Sprintf("Observations at Station - %v", tid),
-							Description: fmt.Sprintf("Time: %v\nTemperature: %.2f°F\nDew Point: %.2f°F\nFeels Like: %.2f°F\nBarometric Pressure: %.2f\nPressure Trend: %v", formattedTime, temp, dewpoint, feelslike, barpressure, pressuretrend),
+							Description: fmt.Sprintf("Time: %v\nTemperature: %.2f°F\nDew Point: %.2f°F\nFeels Like: %.2f°F\nBarometric Pressure: %.2f\nPressure Trend: %v\nPrecip Today: %.2f in\nPrecip Yesterday: %.2f in", formattedTime, temp, dewpoint, feelslike, barpressure, pressuretrend, preciptoday, precipyesterday),
 							Color:       color,
 						},
 					},
