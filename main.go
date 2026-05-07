@@ -47,14 +47,6 @@ var (
 		{
 			Name:        "tempestobs",
 			Description: "Temperature at a tempest ID",
-			/*Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "tid",
-					Description: "tempest ID",
-					Required:    true,
-				},
-			},*/
 		},
 		{
 			Name:        "help",
