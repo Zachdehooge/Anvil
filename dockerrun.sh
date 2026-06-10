@@ -8,6 +8,13 @@ fi
 
 docker build -t anvil-bot .
 
+# Stop and remove existing container if running
+if docker ps -a --format '{{.Names}}' | grep -q '^anvil$'; then
+  echo "Removing existing anvil container..."
+  docker stop anvil
+  docker rm anvil
+fi
+
 docker run -d \
   --name anvil \
   --restart unless-stopped \

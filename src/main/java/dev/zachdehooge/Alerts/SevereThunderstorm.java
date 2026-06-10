@@ -38,7 +38,7 @@ public class SevereThunderstorm {
 
                 Color color;
                 String descLower = description.toLowerCase();
-                if (descLower.contains("confirmed") || descLower.contains("destructive")
+                if (descLower.contains("confirmed") || descLower.contains("destructive") || descLower.contains("considerable")
                         || description.contains("Damaging") || descLower.contains("observed")) {
                     color = new Color(0xAA00FF);
                 } else if (event.toLowerCase().contains("warning")) {

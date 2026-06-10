@@ -1,0 +1,1 @@
+docker stop anvil && docker rm anvil && ./dockerrun.sh

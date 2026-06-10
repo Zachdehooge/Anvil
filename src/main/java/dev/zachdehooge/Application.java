@@ -67,6 +67,12 @@ public class Application extends ListenerAdapter {
                     String.format("%02d:%02d UTC", utc.getHour(), utc.getMinute())));
         }, 0, 1, TimeUnit.MINUTES);
 
+        // Seed seen PIDs from current API state before the first poll so a fresh
+        // container doesn't spam all currently active alerts on startup
+        if (globalSeenPids.isEmpty()) {
+            seedSeenAlerts();
+        }
+
         // Alert polling — single thread matches NadoBot's sequential check_rss_feed loop
         ScheduledExecutorService alertScheduler = Executors.newSingleThreadScheduledExecutor();
         alertScheduler.scheduleAtFixedRate(this::checkAlerts, 0, 1, TimeUnit.MINUTES);
@@ -89,6 +95,36 @@ public class Application extends ListenerAdapter {
                 .queue();
 
         logger.info("Bot is ready");
+    }
+
+    private void seedSeenAlerts() {
+        logger.info("Fresh start detected — seeding seen PIDs from current NWS alerts (nothing will be posted)");
+        try {
+            List<List<AlertEmbed>> allTypes = List.of(
+                    new SevereThunderstorm().getSvrTStorm(),
+                    new Tornado().getTornado(),
+                    new Winter().getWinter(),
+                    new SpecialWeatherStatement().getSWS()
+            );
+
+            int count = 0;
+            for (List<AlertEmbed> alerts : allTypes) {
+                for (AlertEmbed alert : alerts) {
+                    if (alert.id().isBlank()) continue;
+                    globalSeenPids.add(alert.id());
+                    // Also mark as posted for every configured guild so postedItems is consistent
+                    for (long guildId : guildChannels.keySet()) {
+                        postedItems.computeIfAbsent(guildId, k -> ConcurrentHashMap.newKeySet()).add(alert.id());
+                    }
+                    count++;
+                }
+            }
+
+            saveConfig();
+            logger.info("Seeded {} existing alert IDs — only new alerts from this point will be posted", count);
+        } catch (Exception e) {
+            logger.error("Failed to seed seen alerts", e);
+        }
     }
 
     private void checkAlerts() {
@@ -126,13 +162,20 @@ public class Application extends ListenerAdapter {
                     if (alert.id().isBlank()) continue;
 
                     // Skip if this alert has already been processed globally
+                    boolean isNew;
                     synchronized (globalSeenPids) {
-                        if (globalSeenPids.contains(alert.id())) continue;
-                        if (globalSeenPids.size() >= MAX_TRACKED_PIDS) {
-                            globalSeenPids.remove(globalSeenPids.iterator().next());
+                        isNew = !globalSeenPids.contains(alert.id());
+                        if (isNew) {
+                            if (globalSeenPids.size() >= MAX_TRACKED_PIDS) {
+                                globalSeenPids.remove(globalSeenPids.iterator().next());
+                            }
+                            globalSeenPids.add(alert.id());
                         }
-                        globalSeenPids.add(alert.id());
                     }
+                    if (!isNew) continue;
+
+                    // Save immediately so this PID survives a restart even if no guilds post it
+                    dirty = true;
 
                     logger.info("New {} alert: {}", alertType, alert.id());
 
@@ -157,7 +200,6 @@ public class Application extends ListenerAdapter {
                         );
 
                         guildPosted.add(alert.id());
-                        dirty = true;
                     }
                 }
             }
@@ -227,6 +269,14 @@ public class Application extends ListenerAdapter {
             }
             root.set("globalSeenPids", pids);
 
+            ObjectNode posted = mapper.createObjectNode();
+            postedItems.forEach((guildId, ids) -> {
+                ArrayNode idsNode = mapper.createArrayNode();
+                ids.forEach(idsNode::add);
+                posted.set(String.valueOf(guildId), idsNode);
+            });
+            root.set("postedItems", posted);
+
             mapper.writeValue(new File(CONFIG_FILE), root);
         } catch (Exception e) {
             logger.error("Failed to save config", e);
@@ -235,8 +285,41 @@ public class Application extends ListenerAdapter {
 
     private void loadConfig() {
         File file = new File(CONFIG_FILE);
-        if (!file.exists()) {
-            logger.info("No config file found, seeding default guild config");
+        if (file.exists()) {
+            try {
+                JsonNode root = mapper.readTree(file);
+
+                for (Map.Entry<String, JsonNode> guildEntry : root.path("guildChannels").properties()) {
+                    long guildId = Long.parseLong(guildEntry.getKey());
+                    Map<String, Long> typeMap = new ConcurrentHashMap<>();
+                    for (Map.Entry<String, JsonNode> t : guildEntry.getValue().properties()) {
+                        typeMap.put(t.getKey(), t.getValue().asLong());
+                    }
+                    guildChannels.put(guildId, typeMap);
+                    postedItems.computeIfAbsent(guildId, k -> ConcurrentHashMap.newKeySet());
+                }
+
+                for (JsonNode pid : root.path("globalSeenPids")) {
+                    globalSeenPids.add(pid.asText());
+                }
+
+                for (Map.Entry<String, JsonNode> postedEntry : root.path("postedItems").properties()) {
+                    long guildId = Long.parseLong(postedEntry.getKey());
+                    Set<String> ids = ConcurrentHashMap.newKeySet();
+                    for (JsonNode id : postedEntry.getValue()) {
+                        ids.add(id.asText());
+                    }
+                    postedItems.put(guildId, ids);
+                }
+
+                logger.info("Loaded {} guild configs, {} seen PIDs", guildChannels.size(), globalSeenPids.size());
+            } catch (Exception e) {
+                logger.error("Failed to load config", e);
+            }
+        }
+
+        if (guildChannels.isEmpty()) {
+            logger.info("No guild config found, seeding defaults");
             Map<String, Long> defaultChannels = new ConcurrentHashMap<>();
             defaultChannels.put("tornado", 1514265071067467819L);
             defaultChannels.put("severe",  1514265112108863559L);
@@ -245,28 +328,6 @@ public class Application extends ListenerAdapter {
             guildChannels.put(828991980805685258L, defaultChannels);
             postedItems.put(828991980805685258L, ConcurrentHashMap.newKeySet());
             saveConfig();
-            return;
-        }
-        try {
-            JsonNode root = mapper.readTree(file);
-
-            for (Map.Entry<String, JsonNode> guildEntry : root.path("guildChannels").properties()) {
-                long guildId = Long.parseLong(guildEntry.getKey());
-                Map<String, Long> typeMap = new ConcurrentHashMap<>();
-                for (Map.Entry<String, JsonNode> t : guildEntry.getValue().properties()) {
-                    typeMap.put(t.getKey(), t.getValue().asLong());
-                }
-                guildChannels.put(guildId, typeMap);
-                postedItems.computeIfAbsent(guildId, k -> ConcurrentHashMap.newKeySet());
-            }
-
-            for (JsonNode pid : root.path("globalSeenPids")) {
-                globalSeenPids.add(pid.asText());
-            }
-
-            logger.info("Loaded {} guild configs, {} seen PIDs", guildChannels.size(), globalSeenPids.size());
-        } catch (Exception e) {
-            logger.error("Failed to load config", e);
         }
     }
 }
