@@ -236,7 +236,15 @@ public class Application extends ListenerAdapter {
     private void loadConfig() {
         File file = new File(CONFIG_FILE);
         if (!file.exists()) {
-            logger.info("No config file found, starting fresh");
+            logger.info("No config file found, seeding default guild config");
+            Map<String, Long> defaultChannels = new ConcurrentHashMap<>();
+            defaultChannels.put("tornado", 1514265071067467819L);
+            defaultChannels.put("severe",  1514265112108863559L);
+            defaultChannels.put("winter",  1514265147227508912L);
+            defaultChannels.put("sws",     1514265128957116496L);
+            guildChannels.put(828991980805685258L, defaultChannels);
+            postedItems.put(828991980805685258L, ConcurrentHashMap.newKeySet());
+            saveConfig();
             return;
         }
         try {
