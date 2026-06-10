@@ -1,10 +1,7 @@
 package dev.zachdehooge;
 
-public class Anvil
-{
-    static void main(String[] args) {
-        Application app = new Application();
-
-        app.Run();
+public class Anvil {
+    public static void main(String[] args) {
+        new Application().Run();
     }
 }

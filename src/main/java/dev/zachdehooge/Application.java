@@ -1,84 +1,264 @@
 package dev.zachdehooge;
 
+import dev.zachdehooge.Alerts.*;
 import io.github.cdimascio.dotenv.Dotenv;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
-import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
+import net.dv8tion.jda.api.OnlineStatus;
+import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
-import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.IntegrationType;
-import net.dv8tion.jda.api.interactions.InteractionContextType;
-import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.requests.GatewayIntent;
-import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
-import java.util.EnumSet;
-import java.util.Objects;
+import java.io.File;
+import java.time.Clock;
+import java.time.LocalTime;
+import java.util.*;
+import java.util.concurrent.*;
 
-import static net.dv8tion.jda.api.interactions.commands.OptionType.*;
+import static net.dv8tion.jda.api.interactions.commands.OptionType.STRING;
+import static net.dv8tion.jda.api.interactions.commands.build.Commands.slash;
 
 public class Application extends ListenerAdapter {
 
-    public String token() {
-        Dotenv dotenv = Dotenv.load();
-        return dotenv.get("TOKEN");
-    }
+    private static final Logger logger = LoggerFactory.getLogger(Application.class);
+    private static final int MAX_TRACKED_PIDS = 1000;
+    private static final String CONFIG_FILE = "config.json";
+
+    private JDA jda;
+
+    // guild ID -> { "severe" | "tornado" | "winter" | "sws" -> channel ID }
+    private final Map<Long, Map<String, Long>> guildChannels = new ConcurrentHashMap<>();
+
+    // guild ID -> set of alert IDs already posted to that guild
+    private final Map<Long, Set<String>> postedItems = new ConcurrentHashMap<>();
+
+    // globally seen alert IDs (ordered for eviction of oldest when full)
+    private final LinkedHashSet<String> globalSeenPids = new LinkedHashSet<>();
+
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public void Run() {
-        EnumSet<GatewayIntent> intents = EnumSet.noneOf(GatewayIntent.class);
-        JDA jda = JDABuilder.createLight(token(), intents)
-                .addEventListeners(new Application())
+        String envPath = System.getProperty("env.path", ".");
+        Dotenv env = Dotenv.configure().directory(envPath).filename(".env").load();
+
+        loadConfig();
+
+        logger.info("Starting Bot...");
+
+        jda = JDABuilder.createLight(env.get("TOKEN"), EnumSet.noneOf(GatewayIntent.class))
+                .addEventListeners(this)
+                .setStatus(OnlineStatus.DO_NOT_DISTURB)
                 .build();
 
-        CommandListUpdateAction commands = jda.updateCommands();
+        // Clock presence update
+        ScheduledExecutorService presenceScheduler = Executors.newSingleThreadScheduledExecutor();
+        presenceScheduler.scheduleAtFixedRate(() -> {
+            LocalTime utc = LocalTime.now(Clock.systemUTC());
+            jda.getPresence().setActivity(Activity.watching(
+                    String.format("%02d:%02d UTC", utc.getHour(), utc.getMinute())));
+        }, 0, 1, TimeUnit.MINUTES);
 
-        // Simple reply commands
-        commands.addCommands(Commands.slash("say", "Makes the bot say what you tell it to")
-                // Allow the command to be used anywhere (Bot DMs, Guild, Friend DMs, Group DMs)
-                .setContexts(InteractionContextType.ALL)
-                // Allow the command to be installed anywhere (Guilds, Users)
-                .setIntegrationTypes(IntegrationType.ALL)
-                // you can add required options like this too
-                .addOption(STRING, "content", "What the bot should say", true));
+        // Alert polling — single thread matches NadoBot's sequential check_rss_feed loop
+        ScheduledExecutorService alertScheduler = Executors.newSingleThreadScheduledExecutor();
+        alertScheduler.scheduleAtFixedRate(this::checkAlerts, 0, 1, TimeUnit.MINUTES);
 
-        commands.queue();
+        logger.info("Loading Commands...");
+
+        jda.updateCommands()
+                .addCommands(slash("setseverechannel", "Sets the channel for severe thunderstorm alerts")
+                        .addOption(STRING, "channel", "Channel ID or mention", true)
+                        .setIntegrationTypes(IntegrationType.ALL))
+                .addCommands(slash("settorchannel", "Sets the channel for tornado alerts")
+                        .addOption(STRING, "channel", "Channel ID or mention", true)
+                        .setIntegrationTypes(IntegrationType.ALL))
+                .addCommands(slash("setwinterchannel", "Sets the channel for winter weather alerts")
+                        .addOption(STRING, "channel", "Channel ID or mention", true)
+                        .setIntegrationTypes(IntegrationType.ALL))
+                .addCommands(slash("setswschannel", "Sets the channel for Special Weather Statements")
+                        .addOption(STRING, "channel", "Channel ID or mention", true)
+                        .setIntegrationTypes(IntegrationType.ALL))
+                .queue();
+
+        logger.info("Bot is ready");
+    }
+
+    private void checkAlerts() {
+        if (guildChannels.isEmpty()) {
+            logger.debug("No guilds configured, skipping alert check");
+            return;
+        }
+
+        try {
+            Map<String, List<AlertEmbed>> alertsByType = new LinkedHashMap<>();
+            alertsByType.put("severe",  new SevereThunderstorm().getSvrTStorm());
+            alertsByType.put("tornado", new Tornado().getTornado());
+            alertsByType.put("winter",  new Winter().getWinter());
+            alertsByType.put("sws",     new SpecialWeatherStatement().getSWS());
+
+            // Collect currently active IDs and clean up expired ones from globalSeenPids
+            Set<String> activeIds = new HashSet<>();
+            for (List<AlertEmbed> list : alertsByType.values()) {
+                for (AlertEmbed a : list) {
+                    if (!a.id().isBlank()) activeIds.add(a.id());
+                }
+            }
+            if (!activeIds.isEmpty()) {
+                synchronized (globalSeenPids) {
+                    globalSeenPids.removeIf(pid -> !activeIds.contains(pid));
+                }
+            }
+
+            boolean dirty = false;
+
+            for (Map.Entry<String, List<AlertEmbed>> typeEntry : alertsByType.entrySet()) {
+                String alertType = typeEntry.getKey();
+
+                for (AlertEmbed alert : typeEntry.getValue()) {
+                    if (alert.id().isBlank()) continue;
+
+                    // Skip if this alert has already been processed globally
+                    synchronized (globalSeenPids) {
+                        if (globalSeenPids.contains(alert.id())) continue;
+                        if (globalSeenPids.size() >= MAX_TRACKED_PIDS) {
+                            globalSeenPids.remove(globalSeenPids.iterator().next());
+                        }
+                        globalSeenPids.add(alert.id());
+                    }
+
+                    logger.info("New {} alert: {}", alertType, alert.id());
+
+                    for (Map.Entry<Long, Map<String, Long>> guildEntry : guildChannels.entrySet()) {
+                        long guildId = guildEntry.getKey();
+                        Set<String> guildPosted = postedItems.computeIfAbsent(guildId, k -> ConcurrentHashMap.newKeySet());
+
+                        if (guildPosted.contains(alert.id())) continue;
+
+                        Long channelId = guildEntry.getValue().get(alertType);
+                        if (channelId == null) continue;
+
+                        TextChannel channel = jda.getTextChannelById(channelId);
+                        if (channel == null) {
+                            logger.warn("Channel {} not found for guild {} ({})", channelId, guildId, alertType);
+                            continue;
+                        }
+
+                        channel.sendMessageEmbeds(alert.embed()).queue(
+                                msg -> logger.info("Posted {} alert to guild {}", alertType, guildId),
+                                err -> logger.error("Failed to post {} alert to guild {}: {}", alertType, guildId, err.getMessage())
+                        );
+
+                        guildPosted.add(alert.id());
+                        dirty = true;
+                    }
+                }
+            }
+
+            if (dirty) saveConfig();
+
+        } catch (Exception e) {
+            logger.error("Error during alert check", e);
+        }
     }
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
-        // Only accept commands from guilds
-        if (event.getGuild() == null) {
-            return;
-        }
-        if (event.getName().equals("say")) {// content is required so no null-check here
-            say(event, Objects.requireNonNull(event.getOption("content")).getAsString());
-        } else {
-            event.reply("I can't handle that command right now :(")
-                    .setEphemeral(true)
-                    .queue();
-        }
-    }
+        if (event.getGuild() == null) return;
 
-    @Override
-    public void onButtonInteraction(ButtonInteractionEvent event) {
-        // this is the custom id we specified in our button
-        String[] id = event.getComponentId().split(":");
-        String authorId = id[0];
-        String type = id[1];
-        // Check that the button is for the user that clicked it, otherwise just ignore the event (let interaction fail)
-        if (!authorId.equals(event.getUser().getId())) {
+        String alertType = switch (event.getName()) {
+            case "setseverechannel" -> "severe";
+            case "settorchannel"    -> "tornado";
+            case "setwinterchannel" -> "winter";
+            case "setswschannel"    -> "sws";
+            default -> null;
+        };
+
+        if (alertType == null) {
+            event.reply("Unknown command.").setEphemeral(true).queue();
             return;
         }
 
-        // acknowledge the button was clicked, otherwise the interaction will fail
-        event.deferEdit().queue();
+        String raw = event.getOption("channel").getAsString().replaceAll("[^0-9]", "");
+        if (raw.isEmpty()) {
+            event.reply("Please provide a valid channel ID or mention.").setEphemeral(true).queue();
+            return;
+        }
 
-        MessageChannel channel = event.getChannel();
+        long channelId = Long.parseLong(raw);
+        TextChannel channel = jda.getTextChannelById(channelId);
+        if (channel == null) {
+            event.reply("Channel not found — make sure the bot can see that channel.").setEphemeral(true).queue();
+            return;
+        }
+
+        long guildId = event.getGuild().getIdLong();
+        guildChannels.computeIfAbsent(guildId, k -> new ConcurrentHashMap<>()).put(alertType, channelId);
+        postedItems.computeIfAbsent(guildId, k -> ConcurrentHashMap.newKeySet());
+        saveConfig();
+
+        event.reply(channel.getAsMention() + " will now receive **" + alertType + "** weather alerts.")
+                .setEphemeral(true).queue();
+        logger.info("Guild {} set {} channel -> {}", guildId, alertType, channelId);
     }
 
-    public void say(SlashCommandInteractionEvent event, String content) {
-        // This requires no permissions!
-        event.reply(content).queue();
+    private synchronized void saveConfig() {
+        try {
+            ObjectNode root = mapper.createObjectNode();
+
+            ObjectNode channels = mapper.createObjectNode();
+            guildChannels.forEach((guildId, typeMap) -> {
+                ObjectNode typeNode = mapper.createObjectNode();
+                typeMap.forEach((k, v) -> typeNode.put(k, v));
+                channels.set(String.valueOf(guildId), typeNode);
+            });
+            root.set("guildChannels", channels);
+
+            ArrayNode pids = mapper.createArrayNode();
+            synchronized (globalSeenPids) {
+                globalSeenPids.forEach(pids::add);
+            }
+            root.set("globalSeenPids", pids);
+
+            mapper.writeValue(new File(CONFIG_FILE), root);
+        } catch (Exception e) {
+            logger.error("Failed to save config", e);
+        }
+    }
+
+    private void loadConfig() {
+        File file = new File(CONFIG_FILE);
+        if (!file.exists()) {
+            logger.info("No config file found, starting fresh");
+            return;
+        }
+        try {
+            JsonNode root = mapper.readTree(file);
+
+            for (Map.Entry<String, JsonNode> guildEntry : root.path("guildChannels").properties()) {
+                long guildId = Long.parseLong(guildEntry.getKey());
+                Map<String, Long> typeMap = new ConcurrentHashMap<>();
+                for (Map.Entry<String, JsonNode> t : guildEntry.getValue().properties()) {
+                    typeMap.put(t.getKey(), t.getValue().asLong());
+                }
+                guildChannels.put(guildId, typeMap);
+                postedItems.computeIfAbsent(guildId, k -> ConcurrentHashMap.newKeySet());
+            }
+
+            for (JsonNode pid : root.path("globalSeenPids")) {
+                globalSeenPids.add(pid.asText());
+            }
+
+            logger.info("Loaded {} guild configs, {} seen PIDs", guildChannels.size(), globalSeenPids.size());
+        } catch (Exception e) {
+            logger.error("Failed to load config", e);
+        }
     }
 }

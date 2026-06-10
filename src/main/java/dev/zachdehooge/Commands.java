@@ -1,0 +1,25 @@
+package dev.zachdehooge;
+
+import net.dv8tion.jda.api.JDA;
+import static net.dv8tion.jda.api.interactions.commands.OptionType.*;
+
+import net.dv8tion.jda.api.interactions.IntegrationType;
+import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
+import static net.dv8tion.jda.api.interactions.commands.build.Commands.*;
+
+public class Commands {
+    public Commands(JDA jda) {
+        CommandListUpdateAction commands = jda.updateCommands();
+
+        commands.addCommands(slash("setswschannel", "Sets the channel for SWS alerts to post too")
+          .addOption(STRING, "channel", "where should the bot post updates too", true).setIntegrationTypes(IntegrationType.ALL));
+
+        commands.addCommands(slash("setseverechannel", "Sets the channel for Svr-T-Storm alerts to post too").addOption(STRING, "channel", "Sets the channel for Svr-T-Storm to post too", true).setIntegrationTypes(IntegrationType.ALL));
+
+        commands.addCommands(slash("settorchannel", "Sets the channel for tornado alerts to post too").addOption(STRING, "channel", "Sets the channel for tornado to post too", true).setIntegrationTypes(IntegrationType.ALL));
+
+        commands.addCommands(slash("setwinterchannel", "Sets the channel for winter alerts to post too").addOption(STRING, "channel", "Sets the channel for tornado to post too", true).setIntegrationTypes(IntegrationType.ALL));
+
+        commands.queue();
+    }
+}
