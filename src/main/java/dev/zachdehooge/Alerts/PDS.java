@@ -29,7 +29,7 @@ public class PDS {
         CompletableFuture<List<AlertEmbed>> tornadoCf = CompletableFuture.supplyAsync(() ->
                 fetchAlerts(TORNADO_URL, "🌪️", (event, desc) -> {
                     String d = desc.toLowerCase();
-                    if (d.contains("confirmed") || d.contains("destructive") || desc.contains("Damaging") || d.contains("observed"))
+                    if (d.contains("confirmed") || d.contains("destructive") || d.contains("damaging") || d.contains("observed") || d.contains("tornado emergency") || d.contains("particularly dangerous situation"))
                         return new Color(0xAA00FF);
                     return event.toLowerCase().contains("warning") ? Color.RED : Color.ORANGE;
                 }));
@@ -44,7 +44,7 @@ public class PDS {
                 fetchAlerts(TSTORM_URL, "🌩️", (event, desc) -> {
                     String d = desc.toLowerCase();
                     if (d.contains("confirmed") || d.contains("destructive") || d.contains("considerable")
-                            || desc.contains("Damaging") || d.contains("observed") || d.contains("pds") || d.contains("emergency"))
+                            || d.contains("damaging") || d.contains("observed") || d.contains("pds") || d.contains("emergency"))
                         return new Color(0xAA00FF);
                     return event.toLowerCase().contains("warning") ? Color.RED : Color.ORANGE;
                 }));
