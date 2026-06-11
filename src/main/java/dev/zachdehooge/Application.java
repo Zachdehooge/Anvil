@@ -32,18 +32,10 @@ public class Application extends ListenerAdapter {
     private static final Logger logger = LoggerFactory.getLogger(Application.class);
     private static final int MAX_TRACKED_PIDS = 1000;
     private static final String CONFIG_FILE = "config.json";
-
     private JDA jda;
-
-    // guild ID -> { "severe" | "tornado" | "winter" | "sws" -> channel ID }
     private final Map<Long, Map<String, Long>> guildChannels = new ConcurrentHashMap<>();
-
-    // guild ID -> set of alert IDs already posted to that guild
     private final Map<Long, Set<String>> postedItems = new ConcurrentHashMap<>();
-
-    // globally seen alert IDs (ordered for eviction of oldest when full)
     private final LinkedHashSet<String> globalSeenPids = new LinkedHashSet<>();
-
     private final ObjectMapper mapper = new ObjectMapper();
 
     public void Run() {
@@ -59,7 +51,6 @@ public class Application extends ListenerAdapter {
                 .setStatus(OnlineStatus.DO_NOT_DISTURB)
                 .build();
 
-        // Clock presence update
         ScheduledExecutorService presenceScheduler = Executors.newSingleThreadScheduledExecutor();
         presenceScheduler.scheduleAtFixedRate(() -> {
             LocalTime utc = LocalTime.now(Clock.systemUTC());
@@ -67,13 +58,10 @@ public class Application extends ListenerAdapter {
                     String.format("%02d:%02d UTC", utc.getHour(), utc.getMinute())));
         }, 0, 1, TimeUnit.MINUTES);
 
-        // Seed seen PIDs from current API state before the first poll so a fresh
-        // container doesn't spam all currently active alerts on startup
         if (globalSeenPids.isEmpty()) {
             seedSeenAlerts();
         }
 
-        // Alert polling — single thread matches NadoBot's sequential check_rss_feed loop
         ScheduledExecutorService alertScheduler = Executors.newSingleThreadScheduledExecutor();
         alertScheduler.scheduleAtFixedRate(this::checkAlerts, 0, 1, TimeUnit.MINUTES);
 
@@ -92,6 +80,12 @@ public class Application extends ListenerAdapter {
                 .addCommands(slash("setswschannel", "Sets the channel for Special Weather Statements")
                         .addOption(STRING, "channel", "Channel ID or mention", true)
                         .setIntegrationTypes(IntegrationType.ALL))
+                .addCommands(slash("setpdschannel", "Sets the channel for PDS alerts (tornado, severe, winter, flood)")
+                        .addOption(STRING, "channel", "Channel ID or mention", true)
+                        .setIntegrationTypes(IntegrationType.ALL))
+                .addCommands(slash("setfloodchannel", "Sets the channel for flood alerts")
+                        .addOption(STRING, "channel", "Channel ID or mention", true)
+                        .setIntegrationTypes(IntegrationType.ALL))
                 .queue();
 
         logger.info("Bot is ready");
@@ -104,7 +98,9 @@ public class Application extends ListenerAdapter {
                     new SevereThunderstorm().getSvrTStorm(),
                     new Tornado().getTornado(),
                     new Winter().getWinter(),
-                    new SpecialWeatherStatement().getSWS()
+                    new SpecialWeatherStatement().getSWS(),
+                    new PDS().getPDS(),
+                    new Flood().getFlood()
             );
 
             int count = 0;
@@ -112,7 +108,7 @@ public class Application extends ListenerAdapter {
                 for (AlertEmbed alert : alerts) {
                     if (alert.id().isBlank()) continue;
                     globalSeenPids.add(alert.id());
-                    // Also mark as posted for every configured guild so postedItems is consistent
+                    
                     for (long guildId : guildChannels.keySet()) {
                         postedItems.computeIfAbsent(guildId, k -> ConcurrentHashMap.newKeySet()).add(alert.id());
                     }
@@ -139,8 +135,9 @@ public class Application extends ListenerAdapter {
             alertsByType.put("tornado", new Tornado().getTornado());
             alertsByType.put("winter",  new Winter().getWinter());
             alertsByType.put("sws",     new SpecialWeatherStatement().getSWS());
+            alertsByType.put("pds",     new PDS().getPDS());
+            alertsByType.put("flood",   new Flood().getFlood());
 
-            // Collect currently active IDs and clean up expired ones from globalSeenPids
             Set<String> activeIds = new HashSet<>();
             for (List<AlertEmbed> list : alertsByType.values()) {
                 for (AlertEmbed a : list) {
@@ -154,14 +151,13 @@ public class Application extends ListenerAdapter {
             }
 
             boolean dirty = false;
-
             for (Map.Entry<String, List<AlertEmbed>> typeEntry : alertsByType.entrySet()) {
                 String alertType = typeEntry.getKey();
 
                 for (AlertEmbed alert : typeEntry.getValue()) {
                     if (alert.id().isBlank()) continue;
 
-                    // Skip if this alert has already been processed globally
+                    
                     boolean isNew;
                     synchronized (globalSeenPids) {
                         isNew = !globalSeenPids.contains(alert.id());
@@ -174,7 +170,6 @@ public class Application extends ListenerAdapter {
                     }
                     if (!isNew) continue;
 
-                    // Save immediately so this PID survives a restart even if no guilds post it
                     dirty = true;
 
                     logger.info("New {} alert: {}", alertType, alert.id());
@@ -220,6 +215,8 @@ public class Application extends ListenerAdapter {
             case "settorchannel"    -> "tornado";
             case "setwinterchannel" -> "winter";
             case "setswschannel"    -> "sws";
+            case "setpdschannel"    -> "pds";
+            case "setfloodchannel"  -> "flood";
             default -> null;
         };
 
@@ -318,16 +315,26 @@ public class Application extends ListenerAdapter {
             }
         }
 
-        if (guildChannels.isEmpty()) {
-            logger.info("No guild config found, seeding defaults");
-            Map<String, Long> defaultChannels = new ConcurrentHashMap<>();
-            defaultChannels.put("tornado", 1514265071067467819L);
-            defaultChannels.put("severe",  1514265112108863559L);
-            defaultChannels.put("winter",  1514265147227508912L);
-            defaultChannels.put("sws",     1514265128957116496L);
-            guildChannels.put(828991980805685258L, defaultChannels);
-            postedItems.put(828991980805685258L, ConcurrentHashMap.newKeySet());
-            saveConfig();
+        Map<String, Long> channelDefaults = new LinkedHashMap<>();
+        channelDefaults.put("tornado", 1514265071067467819L);
+        channelDefaults.put("severe",  1514265112108863559L);
+        channelDefaults.put("winter",  1514265147227508912L);
+        channelDefaults.put("sws",     1514265128957116496L);
+        channelDefaults.put("pds",     1514376160765808740L);
+        channelDefaults.put("flood",   1514663611035943073L);
+
+        long defaultGuildId = 828991980805685258L;
+        Map<String, Long> guildMap = guildChannels.computeIfAbsent(defaultGuildId, k -> new ConcurrentHashMap<>());
+        postedItems.computeIfAbsent(defaultGuildId, k -> ConcurrentHashMap.newKeySet());
+
+        boolean changed = false;
+        for (Map.Entry<String, Long> def : channelDefaults.entrySet()) {
+            if (!guildMap.containsKey(def.getKey())) {
+                guildMap.put(def.getKey(), def.getValue());
+                logger.info("Added missing '{}' channel to guild config", def.getKey());
+                changed = true;
+            }
         }
+        if (changed) saveConfig();
     }
 }

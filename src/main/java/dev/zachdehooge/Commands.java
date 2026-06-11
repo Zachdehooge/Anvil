@@ -14,11 +14,15 @@ public class Commands {
         commands.addCommands(slash("setswschannel", "Sets the channel for SWS alerts to post too")
           .addOption(STRING, "channel", "where should the bot post updates too", true).setIntegrationTypes(IntegrationType.ALL));
 
-        commands.addCommands(slash("setseverechannel", "Sets the channel for Svr-T-Storm alerts to post too").addOption(STRING, "channel", "Sets the channel for Svr-T-Storm to post too", true).setIntegrationTypes(IntegrationType.ALL));
+        commands.addCommands(slash("setseverechannel", "Sets the channel for Svr-T-Storm alerts to post too").addOption(STRING, "channel", "where should the bot post updates too", true).setIntegrationTypes(IntegrationType.ALL));
 
-        commands.addCommands(slash("settorchannel", "Sets the channel for tornado alerts to post too").addOption(STRING, "channel", "Sets the channel for tornado to post too", true).setIntegrationTypes(IntegrationType.ALL));
+        commands.addCommands(slash("settorchannel", "Sets the channel for tornado alerts to post too").addOption(STRING, "channel", "where should the bot post updates too", true).setIntegrationTypes(IntegrationType.ALL));
 
-        commands.addCommands(slash("setwinterchannel", "Sets the channel for winter alerts to post too").addOption(STRING, "channel", "Sets the channel for tornado to post too", true).setIntegrationTypes(IntegrationType.ALL));
+        commands.addCommands(slash("setwinterchannel", "Sets the channel for winter alerts to post too").addOption(STRING, "channel", "where should the bot post updates too", true).setIntegrationTypes(IntegrationType.ALL));
+
+        commands.addCommands(slash("setpdschannel", "Sets the channel for pds alerts to post too").addOption(STRING, "channel", "where should the bot post updates too", true).setIntegrationTypes(IntegrationType.ALL));
+
+        commands.addCommands(slash("setfloodchannel", "Sets the channel for flood alerts to post too").addOption(STRING, "channel", "where should the bot post updates too", true).setIntegrationTypes(IntegrationType.ALL));
 
         commands.queue();
     }

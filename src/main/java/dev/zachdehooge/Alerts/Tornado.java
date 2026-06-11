@@ -44,7 +44,7 @@ public class Tornado {
                 } else if (event.toLowerCase().contains("warning")) {
                     color = Color.RED;
                 } else {
-                    color = Color.BLUE;
+                    color = Color.ORANGE;
                 }
 
                 String expiresValue = "Unknown";
@@ -55,7 +55,7 @@ public class Tornado {
                 }
 
                 EmbedBuilder builder = new EmbedBuilder()
-                        .setTitle("⚠️ " + event, TORNADO_URL)
+                        .setTitle("🌪️ " + event, TORNADO_URL)
                         .setDescription("**Area:** " + areaDesc + "\n\n" + truncatedDesc)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);

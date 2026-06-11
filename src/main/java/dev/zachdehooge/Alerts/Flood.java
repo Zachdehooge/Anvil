@@ -11,16 +11,16 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Winter {
+public class Flood {
 
-    private static final String WINTER_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=winter%20storm%20warning,winter%20storm%20watch,blizzard%20warning,blizzard%20watch,ice%20storm%20warning,ice%20storm%20watch,heavy%20snow%20warning,snow%20squall%20warning,lake%20effect%20snow%20warning,freezing%20rain%20advisory,wind%20chill%20warning";
+    private static final String FLOOD_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=flash%20flood%20emergency,flash%20flood%20warning,flash%20flood%20watch,flood%20warning,flood%20watch,flood%20advisory";
 
-    public List<AlertEmbed> getWinter() {
+    public List<AlertEmbed> getFlood() {
         List<AlertEmbed> embeds = new ArrayList<>();
 
         try {
             ObjectMapper mapper = new ObjectMapper();
-            JsonNode root = mapper.readTree(new URL(WINTER_URL).openStream());
+            JsonNode root = mapper.readTree(new URL(FLOOD_URL).openStream());
             JsonNode features = root.get("features");
 
             for (JsonNode feature : features) {
@@ -36,14 +36,15 @@ public class Winter {
                         ? description.substring(0, 500) + "..."
                         : description;
 
+                String e = event.toLowerCase();
+                String d = description.toLowerCase();
                 Color color;
-                String eventLower = event.toLowerCase();
-                if (eventLower.contains("blizzard")) {
+                if (e.contains("emergency") || d.contains("catastrophic") || d.contains("life-threatening")) {
                     color = new Color(0xAA00FF);
-                } else if (event.toLowerCase().contains("warning")) {
+                } else if (e.contains("warning")) {
                     color = Color.RED;
                 } else {
-                    color = Color.ORANGE;
+                    color = Color.GREEN;
                 }
 
                 String expiresValue = "Unknown";
@@ -54,7 +55,7 @@ public class Winter {
                 }
 
                 EmbedBuilder builder = new EmbedBuilder()
-                        .setTitle("❄ " + event, WINTER_URL)
+                        .setTitle("🌊 " + event, FLOOD_URL)
                         .setDescription("**Area:** " + areaDesc + "\n\n" + truncatedDesc)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
