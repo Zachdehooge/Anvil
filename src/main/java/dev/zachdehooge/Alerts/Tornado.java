@@ -39,7 +39,9 @@ public class Tornado {
                 Color color;
                 String descLower = description.toLowerCase();
                 if (descLower.contains("confirmed") || descLower.contains("destructive")
-                        || descLower.contains("damaging") || descLower.contains("observed")) {
+                        || descLower.contains("damaging") || descLower.contains("observed")
+                        || descLower.contains("particularly dangerous situation")
+                        || event.toLowerCase().contains("tornado emergency")) {
                     color = new Color(0xAA00FF);
                 } else if (event.toLowerCase().contains("warning")) {
                     color = Color.RED;

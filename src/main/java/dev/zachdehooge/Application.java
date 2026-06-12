@@ -94,23 +94,22 @@ public class Application extends ListenerAdapter {
     private void seedSeenAlerts() {
         logger.info("Fresh start detected — seeding seen PIDs from current NWS alerts (nothing will be posted)");
         try {
-            List<List<AlertEmbed>> allTypes = List.of(
-                    new SevereThunderstorm().getSvrTStorm(),
-                    new Tornado().getTornado(),
-                    new Winter().getWinter(),
-                    new SpecialWeatherStatement().getSWS(),
-                    new PDS().getPDS(),
-                    new Flood().getFlood()
-            );
+            Map<String, List<AlertEmbed>> allTypes = new LinkedHashMap<>();
+            allTypes.put("severe",  new SevereThunderstorm().getSvrTStorm());
+            allTypes.put("tornado", new Tornado().getTornado());
+            allTypes.put("winter",  new Winter().getWinter());
+            allTypes.put("sws",     new SpecialWeatherStatement().getSWS());
+            allTypes.put("pds",     new PDS().getPDS());
+            allTypes.put("flood",   new Flood().getFlood());
 
             int count = 0;
-            for (List<AlertEmbed> alerts : allTypes) {
-                for (AlertEmbed alert : alerts) {
+            for (Map.Entry<String, List<AlertEmbed>> typeEntry : allTypes.entrySet()) {
+                for (AlertEmbed alert : typeEntry.getValue()) {
                     if (alert.id().isBlank()) continue;
-                    globalSeenPids.add(alert.id());
-                    
+                    String seenKey = typeEntry.getKey() + ":" + alert.id();
+                    globalSeenPids.add(seenKey);
                     for (long guildId : guildChannels.keySet()) {
-                        postedItems.computeIfAbsent(guildId, k -> ConcurrentHashMap.newKeySet()).add(alert.id());
+                        postedItems.computeIfAbsent(guildId, k -> ConcurrentHashMap.newKeySet()).add(seenKey);
                     }
                     count++;
                 }
@@ -138,15 +137,15 @@ public class Application extends ListenerAdapter {
             alertsByType.put("pds",     new PDS().getPDS());
             alertsByType.put("flood",   new Flood().getFlood());
 
-            Set<String> activeIds = new HashSet<>();
-            for (List<AlertEmbed> list : alertsByType.values()) {
-                for (AlertEmbed a : list) {
-                    if (!a.id().isBlank()) activeIds.add(a.id());
+            Set<String> activeKeys = new HashSet<>();
+            for (Map.Entry<String, List<AlertEmbed>> e : alertsByType.entrySet()) {
+                for (AlertEmbed a : e.getValue()) {
+                    if (!a.id().isBlank()) activeKeys.add(e.getKey() + ":" + a.id());
                 }
             }
-            if (!activeIds.isEmpty()) {
+            if (!activeKeys.isEmpty()) {
                 synchronized (globalSeenPids) {
-                    globalSeenPids.removeIf(pid -> !activeIds.contains(pid));
+                    globalSeenPids.removeIf(key -> !activeKeys.contains(key));
                 }
             }
 
@@ -157,15 +156,15 @@ public class Application extends ListenerAdapter {
                 for (AlertEmbed alert : typeEntry.getValue()) {
                     if (alert.id().isBlank()) continue;
 
-                    
+                    String seenKey = alertType + ":" + alert.id();
                     boolean isNew;
                     synchronized (globalSeenPids) {
-                        isNew = !globalSeenPids.contains(alert.id());
+                        isNew = !globalSeenPids.contains(seenKey);
                         if (isNew) {
                             if (globalSeenPids.size() >= MAX_TRACKED_PIDS) {
                                 globalSeenPids.remove(globalSeenPids.iterator().next());
                             }
-                            globalSeenPids.add(alert.id());
+                            globalSeenPids.add(seenKey);
                         }
                     }
                     if (!isNew) continue;
@@ -178,7 +177,7 @@ public class Application extends ListenerAdapter {
                         long guildId = guildEntry.getKey();
                         Set<String> guildPosted = postedItems.computeIfAbsent(guildId, k -> ConcurrentHashMap.newKeySet());
 
-                        if (guildPosted.contains(alert.id())) continue;
+                        if (guildPosted.contains(seenKey)) continue;
 
                         Long channelId = guildEntry.getValue().get(alertType);
                         if (channelId == null) continue;
@@ -194,7 +193,7 @@ public class Application extends ListenerAdapter {
                                 err -> logger.error("Failed to post {} alert to guild {}: {}", alertType, guildId, err.getMessage())
                         );
 
-                        guildPosted.add(alert.id());
+                        guildPosted.add(seenKey);
                     }
                 }
             }
