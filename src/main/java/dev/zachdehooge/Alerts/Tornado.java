@@ -32,10 +32,6 @@ public class Tornado {
                 String description = props.get("description").asText();
                 String expiresRaw = props.path("expires").asText(null);
 
-                String truncatedDesc = description.length() > 500
-                        ? description.substring(0, 500) + "..."
-                        : description;
-
                 Color color;
                 String descLower = description.toLowerCase();
                 if (descLower.contains("confirmed") || descLower.contains("destructive")
@@ -58,7 +54,7 @@ public class Tornado {
 
                 EmbedBuilder builder = new EmbedBuilder()
                         .setTitle("🌪️ " + event, TORNADO_URL)
-                        .setDescription("**Area:** " + areaDesc + "\n\n" + truncatedDesc)
+                        .setDescription("**Area:** " + areaDesc)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
 
@@ -66,7 +62,7 @@ public class Tornado {
                     builder.setTimestamp(expiresTime);
                 }
 
-                embeds.add(new AlertEmbed(alertId, builder.build()));
+                embeds.add(new AlertEmbed(alertId, builder.build(), description));
             }
 
         } catch (Exception e) {

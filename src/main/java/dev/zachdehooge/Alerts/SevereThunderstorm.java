@@ -28,18 +28,15 @@ public class SevereThunderstorm {
 
                 String alertId = feature.path("id").asText("");
                 String event = props.get("event").asText();
+                String headline = props.get("headline").asText();
                 String areaDesc = props.get("areaDesc").asText();
                 String description = props.get("description").asText();
                 String expiresRaw = props.path("expires").asText(null);
 
-                String truncatedDesc = description.length() > 500
-                        ? description.substring(0, 500) + "..."
-                        : description;
-
                 Color color;
                 String descLower = description.toLowerCase();
                 if (descLower.contains("confirmed") || descLower.contains("destructive") || descLower.contains("considerable")
-                        || descLower.contains("damaging") || descLower.contains("observed")) {
+                        || descLower.contains("damaging")) {
                     color = new Color(0xAA00FF);
                 } else if (event.toLowerCase().contains("warning")) {
                     color = Color.RED;
@@ -56,7 +53,7 @@ public class SevereThunderstorm {
 
                 EmbedBuilder builder = new EmbedBuilder()
                         .setTitle("🌩️ " + event, TSTORM_URL)
-                        .setDescription("**Area:** " + areaDesc + "\n\n" + truncatedDesc)
+                        .setDescription("**Area:** " + areaDesc)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
 
@@ -64,7 +61,7 @@ public class SevereThunderstorm {
                     builder.setTimestamp(expiresTime);
                 }
 
-                embeds.add(new AlertEmbed(alertId, builder.build()));
+                embeds.add(new AlertEmbed(alertId, builder.build(), description));
             }
 
         } catch (Exception e) {

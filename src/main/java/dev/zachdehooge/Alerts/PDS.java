@@ -84,10 +84,6 @@ public class PDS {
                 String description = props.get("description").asText();
                 String expiresRaw = props.path("expires").asText(null);
 
-                String truncatedDesc = description.length() > 500
-                        ? description.substring(0, 500) + "..."
-                        : description;
-
                 Color color = colorResolver.resolve(event, description);
 
                 if (!color.equals(new Color(0xAA00FF))) continue;
@@ -101,7 +97,7 @@ public class PDS {
 
                 EmbedBuilder builder = new EmbedBuilder()
                         .setTitle(emoji + " " + event, url)
-                        .setDescription("**Area:** " + areaDesc + "\n\n" + truncatedDesc)
+                        .setDescription("**Area:** " + areaDesc)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
 
@@ -109,7 +105,7 @@ public class PDS {
                     builder.setTimestamp(expiresTime);
                 }
 
-                embeds.add(new AlertEmbed(alertId, builder.build()));
+                embeds.add(new AlertEmbed(alertId, builder.build(), description));
             }
         } catch (Exception e) {
             e.printStackTrace();

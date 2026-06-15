@@ -32,10 +32,6 @@ public class Winter {
                 String description = props.get("description").asText();
                 String expiresRaw = props.path("expires").asText(null);
 
-                String truncatedDesc = description.length() > 500
-                        ? description.substring(0, 500) + "..."
-                        : description;
-
                 Color color;
                 String eventLower = event.toLowerCase();
                 if (eventLower.contains("blizzard")) {
@@ -55,7 +51,7 @@ public class Winter {
 
                 EmbedBuilder builder = new EmbedBuilder()
                         .setTitle("❄ " + event, WINTER_URL)
-                        .setDescription("**Area:** " + areaDesc + "\n\n" + truncatedDesc)
+                        .setDescription("**Area:** " + areaDesc)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
 
@@ -63,7 +59,7 @@ public class Winter {
                     builder.setTimestamp(expiresTime);
                 }
 
-                embeds.add(new AlertEmbed(alertId, builder.build()));
+                embeds.add(new AlertEmbed(alertId, builder.build(), description));
             }
 
         } catch (Exception e) {

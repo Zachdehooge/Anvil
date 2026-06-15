@@ -2,14 +2,19 @@ package dev.zachdehooge;
 
 import dev.zachdehooge.Alerts.*;
 import io.github.cdimascio.dotenv.Dotenv;
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.IntegrationType;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +28,7 @@ import java.time.Clock;
 import java.time.LocalTime;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static net.dv8tion.jda.api.interactions.commands.OptionType.STRING;
 import static net.dv8tion.jda.api.interactions.commands.build.Commands.slash;
@@ -37,6 +43,9 @@ public class Application extends ListenerAdapter {
     private final Map<Long, Set<String>> postedItems = new ConcurrentHashMap<>();
     private final LinkedHashSet<String> globalSeenPids = new LinkedHashSet<>();
     private final ObjectMapper mapper = new ObjectMapper();
+    private final Map<String, PageSession> pageCache = new ConcurrentHashMap<>();
+
+    private record PageSession(MessageEmbed baseEmbed, List<String> pages, AtomicInteger index) {}
 
     public void Run() {
         String envPath = System.getProperty("env.path", ".");
@@ -188,10 +197,25 @@ public class Application extends ListenerAdapter {
                             continue;
                         }
 
-                        channel.sendMessageEmbeds(alert.embed()).queue(
-                                msg -> logger.info("Posted {} alert to guild {}", alertType, guildId),
-                                err -> logger.error("Failed to post {} alert to guild {}: {}", alertType, guildId, err.getMessage())
-                        );
+                        String sessionId = UUID.randomUUID().toString();
+                        List<String> pages = splitIntoPages(alert.fullDescription(), alert.embed().getDescription());
+                        MessageEmbed firstPage = buildPagedEmbed(alert.embed(), pages.get(0), 1, pages.size());
+
+                        if (pages.size() > 1) {
+                            pageCache.put(sessionId, new PageSession(alert.embed(), pages, new AtomicInteger(0)));
+                            channel.sendMessageEmbeds(firstPage)
+                                    .setComponents(buildButtons(sessionId, 0, pages.size()))
+                                    .queue(
+                                            msg -> logger.info("Posted {} alert to guild {}", alertType, guildId),
+                                            err -> logger.error("Failed to post {} alert to guild {}: {}", alertType, guildId, err.getMessage())
+                                    );
+                        } else {
+                            channel.sendMessageEmbeds(firstPage)
+                                    .queue(
+                                            msg -> logger.info("Posted {} alert to guild {}", alertType, guildId),
+                                            err -> logger.error("Failed to post {} alert to guild {}: {}", alertType, guildId, err.getMessage())
+                                    );
+                        }
 
                         guildPosted.add(seenKey);
                     }
@@ -203,6 +227,62 @@ public class Application extends ListenerAdapter {
         } catch (Exception e) {
             logger.error("Error during alert check", e);
         }
+    }
+
+    private List<String> splitIntoPages(String text, String existingDesc) {
+        int prefixLen = (existingDesc != null ? existingDesc.length() + 2 : 0);
+        int maxLen = 4096 - prefixLen;
+        List<String> pages = new ArrayList<>();
+        text = text.strip();
+        while (text.length() > maxLen) {
+            int cut = text.lastIndexOf('\n', maxLen);
+            if (cut <= 0) cut = maxLen;
+            pages.add(text.substring(0, cut).strip());
+            text = text.substring(cut).strip();
+        }
+        if (!text.isBlank()) pages.add(text);
+        return pages.isEmpty() ? List.of("") : pages;
+    }
+
+    private MessageEmbed buildPagedEmbed(MessageEmbed base, String page, int pageNum, int total) {
+        EmbedBuilder eb = new EmbedBuilder(base);
+        String desc = (base.getDescription() != null ? base.getDescription() + "\n\n" : "") + page;
+        eb.setDescription(desc);
+        if (total > 1) eb.setFooter("Page " + pageNum + " of " + total);
+        return eb.build();
+    }
+
+    private ActionRow buildButtons(String sessionId, int page, int total) {
+        Button prev = Button.secondary("prev:" + sessionId, "◀").withDisabled(page == 0);
+        Button next = Button.secondary("next:" + sessionId, "▶").withDisabled(page >= total - 1);
+        return ActionRow.of(prev, next);
+    }
+
+    @Override
+    public void onButtonInteraction(ButtonInteractionEvent event) {
+        String[] parts = event.getComponentId().split(":", 2);
+        if (parts.length != 2) return;
+
+        String action = parts[0];
+        String sessionId = parts[1];
+
+        PageSession session = pageCache.get(sessionId);
+        if (session == null) {
+            event.reply("Pages are no longer available (bot may have restarted).").setEphemeral(true).queue();
+            return;
+        }
+
+        int newPage = switch (action) {
+            case "prev" -> Math.max(0, session.index().get() - 1);
+            case "next" -> Math.min(session.pages().size() - 1, session.index().get() + 1);
+            default -> session.index().get();
+        };
+        session.index().set(newPage);
+
+        MessageEmbed updated = buildPagedEmbed(session.baseEmbed(), session.pages().get(newPage), newPage + 1, session.pages().size());
+        event.editMessageEmbeds(updated)
+                .setComponents(buildButtons(sessionId, newPage, session.pages().size()))
+                .queue();
     }
 
     @Override

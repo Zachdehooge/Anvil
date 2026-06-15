@@ -32,10 +32,6 @@ public class Flood {
                 String description = props.get("description").asText();
                 String expiresRaw = props.path("expires").asText(null);
 
-                String truncatedDesc = description.length() > 500
-                        ? description.substring(0, 500) + "..."
-                        : description;
-
                 String e = event.toLowerCase();
                 String d = description.toLowerCase();
                 Color color;
@@ -56,7 +52,7 @@ public class Flood {
 
                 EmbedBuilder builder = new EmbedBuilder()
                         .setTitle("🌊 " + event, FLOOD_URL)
-                        .setDescription("**Area:** " + areaDesc + "\n\n" + truncatedDesc)
+                        .setDescription("**Area:** " + areaDesc)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
 
@@ -64,7 +60,7 @@ public class Flood {
                     builder.setTimestamp(expiresTime);
                 }
 
-                embeds.add(new AlertEmbed(alertId, builder.build()));
+                embeds.add(new AlertEmbed(alertId, builder.build(), description));
             }
 
         } catch (Exception e) {
