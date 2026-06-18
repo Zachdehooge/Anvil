@@ -95,6 +95,8 @@ public class Application extends ListenerAdapter {
                 .addCommands(slash("setfloodchannel", "Sets the channel for flood alerts")
                         .addOption(STRING, "channel", "Channel ID or mention", true)
                         .setIntegrationTypes(IntegrationType.ALL))
+                .addCommands(slash("gettempestobs", "Get Tempest OBS")
+                        .setIntegrationTypes(IntegrationType.ALL))
                 .queue();
 
         logger.info("Bot is ready");
@@ -110,6 +112,7 @@ public class Application extends ListenerAdapter {
             allTypes.put("sws",     new SpecialWeatherStatement().getSWS());
             allTypes.put("pds",     new PDS().getPDS());
             allTypes.put("flood",   new Flood().getFlood());
+            allTypes.put("tempest", new Tempest().getObs());
 
             int count = 0;
             for (Map.Entry<String, List<AlertEmbed>> typeEntry : allTypes.entrySet()) {
@@ -145,6 +148,7 @@ public class Application extends ListenerAdapter {
             alertsByType.put("sws",     new SpecialWeatherStatement().getSWS());
             alertsByType.put("pds",     new PDS().getPDS());
             alertsByType.put("flood",   new Flood().getFlood());
+            alertsByType.put("tempest", new Tempest().getObs());
 
             Set<String> activeKeys = new HashSet<>();
             for (Map.Entry<String, List<AlertEmbed>> e : alertsByType.entrySet()) {
@@ -288,6 +292,17 @@ public class Application extends ListenerAdapter {
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         if (event.getGuild() == null) return;
+
+        if ("gettempestobs".equals(event.getName())) {
+            event.deferReply().queue();
+            List<AlertEmbed> obs = new Tempest().getObs();
+            if (obs.isEmpty()) {
+                event.getHook().sendMessage("No observations available.").setEphemeral(true).queue();
+            } else {
+                event.getHook().sendMessageEmbeds(obs.get(0).embed()).queue();
+            }
+            return;
+        }
 
         String alertType = switch (event.getName()) {
             case "setseverechannel" -> "severe";
