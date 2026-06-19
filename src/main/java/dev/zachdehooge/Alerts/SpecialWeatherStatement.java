@@ -32,17 +32,7 @@ public class SpecialWeatherStatement {
                 String description = props.get("description").asText();
                 String expiresRaw = props.path("expires").asText(null);
 
-                Color color;
-                String descLower = description.toLowerCase();
-                if (descLower.contains("confirmed") || descLower.contains("destructive")
-                        || descLower.contains("damaging") || descLower.contains("observed")) {
-                    color = new Color(0xAA00FF);
-                } else if (event.toLowerCase().contains("warning")) {
-                    color = Color.RED;
-                } else {
-                    color = Color.BLUE;
-                }
-
+                Color color = Color.BLUE;
                 String expiresValue = "Unknown";
                 OffsetDateTime expiresTime = null;
                 if (expiresRaw != null && !expiresRaw.isBlank()) {
