@@ -72,7 +72,7 @@ public class Application extends ListenerAdapter {
         }
 
         ScheduledExecutorService alertScheduler = Executors.newSingleThreadScheduledExecutor();
-        alertScheduler.scheduleAtFixedRate(this::checkAlerts, 0, 1, TimeUnit.MINUTES);
+        alertScheduler.scheduleAtFixedRate(this::checkAlerts, 0, 40, TimeUnit.SECONDS);
 
         logger.info("Loading Commands...");
 

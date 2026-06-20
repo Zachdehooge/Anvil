@@ -46,7 +46,7 @@ public class Tempest {
                         .addField("Humidity", humidity != null ? humidity.asText() + "%" : "N/A", true)
                         .addField("Sea Level Pressure", pressure != null ? pressure.asText() + " mb" : "N/A", true);
 
-                embeds.add(new dev.zachdehooge.AlertEmbed("tempest-obs", builder.build(), ""));
+                embeds.add(new AlertEmbed("tempest-obs", builder.build(), ""));
             }
         } catch (Exception e) {
             e.printStackTrace();
