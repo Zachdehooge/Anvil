@@ -95,6 +95,9 @@ public class Application extends ListenerAdapter {
                 .addCommands(slash("setfloodchannel", "Sets the channel for flood alerts")
                         .addOption(STRING, "channel", "Channel ID or mention", true)
                         .setIntegrationTypes(IntegrationType.ALL))
+                .addCommands(slash("setwatchchannel", "Sets the channel for watch alerts")
+                        .addOption(STRING, "channel", "Channel ID or mention", true)
+                        .setIntegrationTypes(IntegrationType.ALL))
                 .addCommands(slash("gettempestobs", "Get Tempest OBS")
                         .setIntegrationTypes(IntegrationType.ALL))
                 .queue();
@@ -112,6 +115,7 @@ public class Application extends ListenerAdapter {
             allTypes.put("sws",     new SpecialWeatherStatement().getSWS());
             allTypes.put("pds",     new PDS().getPDS());
             allTypes.put("flood",   new Flood().getFlood());
+            allTypes.put("watch",   new Watches().getWatch());
             allTypes.put("tempest", new Tempest().getObs());
 
             int count = 0;
@@ -148,6 +152,7 @@ public class Application extends ListenerAdapter {
             alertsByType.put("sws",     new SpecialWeatherStatement().getSWS());
             alertsByType.put("pds",     new PDS().getPDS());
             alertsByType.put("flood",   new Flood().getFlood());
+            alertsByType.put("watch",   new Watches().getWatch());
             alertsByType.put("tempest", new Tempest().getObs());
 
             Set<String> activeKeys = new HashSet<>();
@@ -311,6 +316,7 @@ public class Application extends ListenerAdapter {
             case "setswschannel"    -> "sws";
             case "setpdschannel"    -> "pds";
             case "setfloodchannel"  -> "flood";
+            case "setwatchchannel"     -> "watch";
             default -> null;
         };
 
@@ -416,6 +422,7 @@ public class Application extends ListenerAdapter {
         channelDefaults.put("sws",     1514265128957116496L);
         channelDefaults.put("pds",     1514376160765808740L);
         channelDefaults.put("flood",   1514663611035943073L);
+        channelDefaults.put("watch",    1518727400278458440L);
 
         long defaultGuildId = 828991980805685258L;
         Map<String, Long> guildMap = guildChannels.computeIfAbsent(defaultGuildId, k -> new ConcurrentHashMap<>());
