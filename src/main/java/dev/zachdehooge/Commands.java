@@ -24,6 +24,9 @@ public class Commands {
 
         commands.addCommands(slash("setfloodchannel", "Sets the channel for flood alerts to post too").addOption(STRING, "channel", "where should the bot post updates too", true).setIntegrationTypes(IntegrationType.ALL));
 
+        commands.addCommands(slash("gettempestobs", "Get Tempest observations")
+        .setIntegrationTypes(IntegrationType.ALL));
+
         commands.queue();
     }
 }
