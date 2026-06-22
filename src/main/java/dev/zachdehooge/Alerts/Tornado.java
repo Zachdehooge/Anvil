@@ -1,6 +1,7 @@
 package dev.zachdehooge.Alerts;
 
 import dev.zachdehooge.AlertEmbed;
+import dev.zachdehooge.AmbientColors;
 import net.dv8tion.jda.api.EmbedBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -32,18 +33,7 @@ public class Tornado {
                 String description = props.get("description").asText();
                 String expiresRaw = props.path("expires").asText(null);
 
-                Color color;
-                String descLower = description.toLowerCase();
-                if (descLower.contains("confirmed") || descLower.contains("destructive")
-                        || descLower.contains("damaging") || descLower.contains("observed")
-                        || descLower.contains("particularly dangerous situation")
-                        || event.toLowerCase().contains("tornado emergency")) {
-                    color = new Color(0xAA00FF);
-                } else if (event.toLowerCase().contains("warning")) {
-                    color = Color.RED;
-                } else {
-                    color = Color.ORANGE;
-                }
+                Color color = event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
 
                 String expiresValue = "Unknown";
                 OffsetDateTime expiresTime = null;

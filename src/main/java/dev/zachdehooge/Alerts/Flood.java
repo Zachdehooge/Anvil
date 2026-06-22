@@ -1,6 +1,7 @@
 package dev.zachdehooge.Alerts;
 
 import dev.zachdehooge.AlertEmbed;
+import dev.zachdehooge.AmbientColors;
 import net.dv8tion.jda.api.EmbedBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -32,16 +33,7 @@ public class Flood {
                 String description = props.get("description").asText();
                 String expiresRaw = props.path("expires").asText(null);
 
-                String e = event.toLowerCase();
-                String d = description.toLowerCase();
-                Color color;
-                if (e.contains("emergency") || d.contains("catastrophic") || d.contains("life-threatening")) {
-                    color = new Color(0xAA00FF);
-                } else if (e.contains("warning")) {
-                    color = Color.RED;
-                } else {
-                    color = Color.GREEN;
-                }
+                Color color = event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
 
                 String expiresValue = "Unknown";
                 OffsetDateTime expiresTime = null;

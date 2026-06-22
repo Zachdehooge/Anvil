@@ -1,6 +1,7 @@
 package dev.zachdehooge.Alerts;
 
 import dev.zachdehooge.AlertEmbed;
+import dev.zachdehooge.AmbientColors;
 import net.dv8tion.jda.api.EmbedBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -32,15 +33,7 @@ public class Winter {
                 String description = props.get("description").asText();
                 String expiresRaw = props.path("expires").asText(null);
 
-                Color color;
-                String eventLower = event.toLowerCase();
-                if (eventLower.contains("blizzard")) {
-                    color = new Color(0xAA00FF);
-                } else if (event.toLowerCase().contains("warning")) {
-                    color = Color.RED;
-                } else {
-                    color = Color.ORANGE;
-                }
+                Color color = event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
 
                 String expiresValue = "Unknown";
                 OffsetDateTime expiresTime = null;

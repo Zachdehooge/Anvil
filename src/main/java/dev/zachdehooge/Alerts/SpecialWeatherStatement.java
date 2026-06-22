@@ -1,6 +1,7 @@
 package dev.zachdehooge.Alerts;
 
 import dev.zachdehooge.AlertEmbed;
+import dev.zachdehooge.AmbientColors;
 import net.dv8tion.jda.api.EmbedBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -32,7 +33,7 @@ public class SpecialWeatherStatement {
                 String description = props.get("description").asText();
                 String expiresRaw = props.path("expires").asText(null);
 
-                Color color = Color.BLUE;
+                Color color = AmbientColors.SWS;
                 String expiresValue = "Unknown";
                 OffsetDateTime expiresTime = null;
                 if (expiresRaw != null && !expiresRaw.isBlank()) {

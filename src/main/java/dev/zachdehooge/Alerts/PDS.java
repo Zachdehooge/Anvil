@@ -1,6 +1,7 @@
 package dev.zachdehooge.Alerts;
 
 import dev.zachdehooge.AlertEmbed;
+import dev.zachdehooge.AmbientColors;
 import net.dv8tion.jda.api.EmbedBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -12,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import dev.zachdehooge.AmbientColors.*;
 
 public class PDS {
 
@@ -27,34 +29,32 @@ public class PDS {
 
     public List<AlertEmbed> getPDS() {
         CompletableFuture<List<AlertEmbed>> tornadoCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(TORNADO_URL, "🌪️", (event, desc) -> {
-                    String d = desc.toLowerCase();
-                    if (d.contains("confirmed") || d.contains("destructive") || d.contains("damaging") || d.contains("observed") || d.contains("tornado emergency") || d.contains("particularly dangerous situation"))
-                        return new Color(0xAA00FF);
-                    return event.toLowerCase().contains("warning") ? Color.RED : Color.ORANGE;
+                fetchAlerts(TORNADO_URL, "🌪️", (event, _) -> {
+                    String e = event.toLowerCase();
+                    if (e.contains("confirmed") || e.contains("destructive") || e.contains("damaging") || e.contains("observed") || e.contains("tornado emergency") || e.contains("particularly dangerous situation"))
+                        return AmbientColors.PDS_WARNING;
+                    return event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> winterCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(WINTER_URL, "❄", (event, desc) -> {
-                    if (event.toLowerCase().contains("blizzard")) return new Color(0xAA00FF);
-                    return event.toLowerCase().contains("warning") ? Color.RED : Color.ORANGE;
+                fetchAlerts(WINTER_URL, "❄", (event, _) -> {
+                    if (event.toLowerCase().contains("blizzard")) return AmbientColors.PDS_WARNING;
+                    return event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> tstormCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(TSTORM_URL, "🌩️", (event, desc) -> {
-                    String d = desc.toLowerCase();
-                    if (d.contains("destructive") || d.contains("considerable"))
-                        return new Color(0xAA00FF);
-                    return event.toLowerCase().contains("warning") ? Color.RED : Color.ORANGE;
+                fetchAlerts(TSTORM_URL, "🌩️", (event, _) -> {
+                    String e = event.toLowerCase();
+                    if (e.contains("destructive") || e.contains("considerable")){
+                        return AmbientColors.PDS_WARNING;}
+                    return event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> floodCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(FLOOD_URL, "🌊", (event, desc) -> {
+                fetchAlerts(FLOOD_URL, "🌊", (event, _) -> {
                     String e = event.toLowerCase();
-                    String d = desc.toLowerCase();
-                    if (e.contains("emergency") || d.contains("catastrophic") || d.contains("life-threatening") || d.contains("particularly dangerous situation"))
-                        return new Color(0xAA00FF);
-                    return e.contains("warning") ? Color.RED : Color.ORANGE;
+                    if (e.contains("emergency") || e.contains("catastrophic") || e.contains("life-threatening") || e.contains("particularly dangerous situation")){return AmbientColors.PDS_WARNING;}
+                    return event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         List<AlertEmbed> embeds = new ArrayList<>();
@@ -86,7 +86,7 @@ public class PDS {
 
                 Color color = colorResolver.resolve(event, description);
 
-                if (!color.equals(new Color(0xAA00FF))) continue;
+                if (!color.equals(AmbientColors.PDS_WARNING)) continue;
 
                 String expiresValue = "Unknown";
                 OffsetDateTime expiresTime = null;

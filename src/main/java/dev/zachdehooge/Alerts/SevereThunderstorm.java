@@ -1,6 +1,7 @@
 package dev.zachdehooge.Alerts;
 
 import dev.zachdehooge.AlertEmbed;
+import dev.zachdehooge.AmbientColors;
 import net.dv8tion.jda.api.EmbedBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -28,21 +29,11 @@ public class SevereThunderstorm {
 
                 String alertId = feature.path("id").asText("");
                 String event = props.get("event").asText();
-                String headline = props.get("headline").asText();
                 String areaDesc = props.get("areaDesc").asText();
                 String description = props.get("description").asText();
                 String expiresRaw = props.path("expires").asText(null);
 
-                Color color;
-                String descLower = description.toLowerCase();
-                if (descLower.contains("confirmed") || descLower.contains("destructive") || descLower.contains("considerable")
-                        || descLower.contains("damaging")) {
-                    color = new Color(0xAA00FF);
-                } else if (event.toLowerCase().contains("warning")) {
-                    color = Color.RED;
-                } else {
-                    color = Color.ORANGE;
-                }
+                Color color = event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
 
                 String expiresValue = "Unknown";
                 OffsetDateTime expiresTime = null;

@@ -65,7 +65,7 @@ public class Application extends ListenerAdapter {
             LocalTime utc = LocalTime.now(Clock.systemUTC());
             jda.getPresence().setActivity(Activity.watching(
                     String.format("%02d:%02d UTC", utc.getHour(), utc.getMinute())));
-        }, 0, 1, TimeUnit.MINUTES);
+        }, 0, 30, TimeUnit.SECONDS);
 
         if (globalSeenPids.isEmpty()) {
             seedSeenAlerts();
