@@ -1,6 +1,7 @@
 package dev.zachdehooge;
 
 import dev.zachdehooge.Alerts.*;
+import dev.zachdehooge.Utilities.Database;
 import io.github.cdimascio.dotenv.Dotenv;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
@@ -23,9 +24,15 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
+import java.awt.Color;
 import java.io.File;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,6 +45,7 @@ public class Application extends ListenerAdapter {
     private static final Logger logger = LoggerFactory.getLogger(Application.class);
     private static final int MAX_TRACKED_PIDS = 1000;
     private static final String CONFIG_FILE = "config.json";
+    private final Database db = Database.getInstance();
     private JDA jda;
     private final Map<Long, Map<String, Long>> guildChannels = new ConcurrentHashMap<>();
     private final Map<Long, Set<String>> postedItems = new ConcurrentHashMap<>();
@@ -74,6 +82,10 @@ public class Application extends ListenerAdapter {
         ScheduledExecutorService alertScheduler = Executors.newSingleThreadScheduledExecutor();
         alertScheduler.scheduleAtFixedRate(this::checkAlerts, 0, 40, TimeUnit.SECONDS);
 
+        ScheduledExecutorService reportScheduler = Executors.newSingleThreadScheduledExecutor();
+        reportScheduler.scheduleAtFixedRate(this::postDailyReport,
+                secondsUntilNextReportUTC(), 86400, TimeUnit.SECONDS);
+
         logger.info("Loading Commands...");
 
         jda.updateCommands()
@@ -99,6 +111,11 @@ public class Application extends ListenerAdapter {
                         .addOption(STRING, "channel", "Channel ID or mention", true)
                         .setIntegrationTypes(IntegrationType.ALL))
                 .addCommands(slash("gettempestobs", "Get Tempest OBS")
+                        .setIntegrationTypes(IntegrationType.ALL))
+                .addCommands(slash("runreport", "Daily report: alert counts and Tempest min/max metrics")
+                        .setIntegrationTypes(IntegrationType.ALL))
+                .addCommands(slash("setreportchannel", "Sets the channel for the automated 11:59 PM UTC daily report")
+                        .addOption(STRING, "channel", "Channel ID or mention", true)
                         .setIntegrationTypes(IntegrationType.ALL))
                 .queue();
 
@@ -153,7 +170,12 @@ public class Application extends ListenerAdapter {
             alertsByType.put("pds",     new PDS().getPDS());
             alertsByType.put("flood",   new Flood().getFlood());
             alertsByType.put("watch",   new Watches().getWatch());
-            alertsByType.put("tempest", new Tempest().getObs());
+
+            Tempest tempest = new Tempest();
+            alertsByType.put("tempest", tempest.getObs());
+            tempest.getRawObs().ifPresent(obs ->
+                db.logTempestObs(obs.airTemp(), obs.feelsLike(), obs.humidity(), obs.pressure(),
+                        obs.dewPoint(), obs.windAvg(), obs.windGust(), obs.rainAccumLocal(), obs.lightningCount()));
 
             Set<String> activeKeys = new HashSet<>();
             for (Map.Entry<String, List<AlertEmbed>> e : alertsByType.entrySet()) {
@@ -190,6 +212,7 @@ public class Application extends ListenerAdapter {
                     dirty = true;
 
                     logger.info("New {} alert: {}", alertType, alert.id());
+                    db.logAlert(alert.id(), alert.eventName());
 
                     for (Map.Entry<Long, Map<String, Long>> guildEntry : guildChannels.entrySet()) {
                         long guildId = guildEntry.getKey();
@@ -236,6 +259,88 @@ public class Application extends ListenerAdapter {
         } catch (Exception e) {
             logger.error("Error during alert check", e);
         }
+    }
+
+    private static double toF(double celsius) {
+        return celsius * 9.0 / 5.0 + 32.0;
+    }
+
+    private MessageEmbed buildAlertReportEmbed(String today, Map<String, Integer> alertCounts) {
+        EmbedBuilder eb = new EmbedBuilder()
+                .setTitle("Daily Weather Report — " + today)
+                .setColor(new Color(0xE74C3C));
+
+        if (alertCounts.isEmpty()) {
+            eb.setDescription("No alerts logged today.");
+        } else {
+            StringBuilder sb = new StringBuilder();
+            alertCounts.forEach((name, count) ->
+                    sb.append("**").append(name).append("**: ").append(count).append("\n"));
+            eb.setDescription(sb.toString().strip());
+        }
+
+        return eb.build();
+    }
+
+    private MessageEmbed buildTempestReportEmbed(String today, Database.TempestStats s) {
+        EmbedBuilder eb = new EmbedBuilder()
+                .setTitle("Tempest Station — " + today)
+                .setColor(new Color(0x3498DB));
+
+        if (!s.hasData()) {
+            eb.setDescription("No observations logged yet.");
+            return eb.build();
+        }
+
+        eb.addField("Temperature",
+                String.format("%.1f°F – %.1f°F", toF(s.minAirTemp()), toF(s.maxAirTemp())), true)
+          .addField("Feels Like",
+                String.format("%.1f°F – %.1f°F", toF(s.minFeelsLike()), toF(s.maxFeelsLike())), true)
+          .addField("Dew Point",
+                String.format("%.1f°F – %.1f°F", toF(s.minDewPoint()), toF(s.maxDewPoint())), true)
+          .addField("Wind (Low – Gust)",
+                String.format("%.1f – %.1f mph", s.minWindAvg() * 2.23694, s.maxWindGust() * 2.23694), true)
+          .addField("Rainfall",
+                String.format("%.2f in", s.totalRain() * 0.0393701), true)
+          .addField("Lightning",
+                s.totalLightning() + " strikes", true)
+          .addField("Humidity",
+                String.format("%.0f%% – %.0f%%", s.minHumidity(), s.maxHumidity()), true)
+          .addField("Sea Level Pressure",
+                String.format("%.1f – %.1f mb", s.minPressure(), s.maxPressure()), true);
+
+        return eb.build();
+    }
+
+    private void postDailyReport() {
+        String today = LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("MMMM d, yyyy"));
+        MessageEmbed alertEmbed   = buildAlertReportEmbed(today, db.getDailyAlertCounts());
+        MessageEmbed tempestEmbed = buildTempestReportEmbed(today, db.getDailyTempestStats());
+
+        for (Map.Entry<Long, Map<String, Long>> guildEntry : guildChannels.entrySet()) {
+            Long channelId = guildEntry.getValue().get("report");
+            if (channelId == null) continue;
+            TextChannel channel = jda.getTextChannelById(channelId);
+            if (channel == null) {
+                logger.warn("Report channel {} not found for guild {}", channelId, guildEntry.getKey());
+                continue;
+            }
+            long guildId = guildEntry.getKey();
+            channel.sendMessageEmbeds(alertEmbed).queue(
+                    msg -> channel.sendMessageEmbeds(tempestEmbed).queue(
+                            msg2 -> logger.info("Posted daily report to guild {}", guildId),
+                            err  -> logger.error("Failed to post Tempest report to guild {}: {}", guildId, err.getMessage())
+                    ),
+                    err -> logger.error("Failed to post alert report to guild {}: {}", guildId, err.getMessage())
+            );
+        }
+    }
+
+    private long secondsUntilNextReportUTC() {
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        ZonedDateTime next = now.toLocalDate().atTime(23, 59).atZone(ZoneOffset.UTC);
+        if (!now.isBefore(next)) next = next.plusDays(1);
+        return Duration.between(now, next).getSeconds();
     }
 
     private List<String> splitIntoPages(String text, String existingDesc) {
@@ -296,6 +401,18 @@ public class Application extends ListenerAdapter {
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
+        if ("runreport".equals(event.getName())) {
+            event.deferReply().queue();
+            String today = LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("MMMM d, yyyy"));
+            MessageEmbed alertEmbed   = buildAlertReportEmbed(today, db.getDailyAlertCounts());
+            MessageEmbed tempestEmbed = buildTempestReportEmbed(today, db.getDailyTempestStats());
+            event.getHook().sendMessageEmbeds(alertEmbed).queue(
+                    msg -> event.getHook().sendMessageEmbeds(tempestEmbed).queue(),
+                    err -> logger.error("Failed to send alert report embed: {}", err.getMessage())
+            );
+            return;
+        }
+
         if (event.getGuild() == null) return;
 
         if ("gettempestobs".equals(event.getName())) {
@@ -310,13 +427,14 @@ public class Application extends ListenerAdapter {
         }
 
         String alertType = switch (event.getName()) {
-            case "setseverechannel" -> "severe";
-            case "settorchannel"    -> "tornado";
-            case "setwinterchannel" -> "winter";
-            case "setswschannel"    -> "sws";
-            case "setpdschannel"    -> "pds";
-            case "setfloodchannel"  -> "flood";
-            case "setwatchchannel"     -> "watch";
+            case "setseverechannel"  -> "severe";
+            case "settorchannel"     -> "tornado";
+            case "setwinterchannel"  -> "winter";
+            case "setswschannel"     -> "sws";
+            case "setpdschannel"     -> "pds";
+            case "setfloodchannel"   -> "flood";
+            case "setwatchchannel"   -> "watch";
+            case "setreportchannel"  -> "report";
             default -> null;
         };
 
@@ -422,7 +540,8 @@ public class Application extends ListenerAdapter {
         channelDefaults.put("sws",     1514265128957116496L);
         channelDefaults.put("pds",     1514376160765808740L);
         channelDefaults.put("flood",   1514663611035943073L);
-        channelDefaults.put("watch",    1518727400278458440L);
+        channelDefaults.put("watch",   1518727400278458440L);
+        channelDefaults.put("report",  1519027873686487101L);
 
         long defaultGuildId = 828991980805685258L;
         Map<String, Long> guildMap = guildChannels.computeIfAbsent(defaultGuildId, k -> new ConcurrentHashMap<>());

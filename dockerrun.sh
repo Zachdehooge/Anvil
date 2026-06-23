@@ -6,6 +6,11 @@ if [ ! -f config.json ]; then
   echo '{}' > config.json
 fi
 
+# Touch the database file so Docker mounts it as a file, not a directory
+if [ ! -f anvil_database.db ]; then
+  touch anvil_database.db
+fi
+
 docker build -t anvil-bot .
 
 # Stop and remove existing container if running
@@ -20,4 +25,5 @@ docker run -d \
   --restart unless-stopped \
   -v "$(pwd)/.env:/app/.env:ro" \
   -v "$(pwd)/config.json:/app/config.json" \
+  -v "$(pwd)/anvil_database.db:/app/anvil_database.db" \
   anvil-bot

@@ -51,7 +51,7 @@ public class SpecialWeatherStatement {
                     builder.setTimestamp(expiresTime);
                 }
 
-                embeds.add(new AlertEmbed(alertId, builder.build(), description));
+                embeds.add(new AlertEmbed(alertId, builder.build(), description, event));
             }
 
         } catch (Exception e) {
