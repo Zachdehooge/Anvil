@@ -14,7 +14,7 @@ import java.util.List;
 
 public class Flood {
 
-    private static final String FLOOD_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=flash%20flood%20emergency,flash%20flood%20warning,flash%20flood%20watch,flood%20warning,flood%20watch,flood%20advisory";
+    private static final String FLOOD_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=flash%20flood%20emergency,flash%20flood%20warning,flood%20warning,flood%20advisory";
 
     public List<AlertEmbed> getFlood() {
         List<AlertEmbed> embeds = new ArrayList<>();

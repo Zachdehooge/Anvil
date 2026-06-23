@@ -14,7 +14,7 @@ import java.util.List;
 
 public class Tornado {
 
-    private static final String TORNADO_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=tornado%20watch,tornado%20warning,tornado%20emergency";
+    private static final String TORNADO_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=tornado%20warning,tornado%20emergency";
 
     public List<AlertEmbed> getTornado() {
         List<AlertEmbed> embeds = new ArrayList<>();

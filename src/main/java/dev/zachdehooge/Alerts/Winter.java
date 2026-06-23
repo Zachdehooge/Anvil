@@ -14,7 +14,7 @@ import java.util.List;
 
 public class Winter {
 
-    private static final String WINTER_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=winter%20storm%20warning,winter%20storm%20watch,blizzard%20warning,blizzard%20watch,ice%20storm%20warning,ice%20storm%20watch,heavy%20snow%20warning,snow%20squall%20warning,lake%20effect%20snow%20warning,freezing%20rain%20advisory,wind%20chill%20warning";
+    private static final String WINTER_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=winter%20storm%20warning,blizzard%20warning,ice%20storm%20warning,heavy%20snow%20warning,snow%20squall%20warning,lake%20effect%20snow%20warning,freezing%20rain%20advisory,wind%20chill%20warning";
 
     public List<AlertEmbed> getWinter() {
         List<AlertEmbed> embeds = new ArrayList<>();

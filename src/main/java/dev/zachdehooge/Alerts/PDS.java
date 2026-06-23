@@ -105,7 +105,7 @@ public class PDS {
                     builder.setTimestamp(expiresTime);
                 }
 
-                embeds.add(new AlertEmbed(alertId, builder.build(), description, event));
+                embeds.add(new AlertEmbed(alertId, builder.build(), description));
             }
         } catch (Exception e) {
             e.printStackTrace();

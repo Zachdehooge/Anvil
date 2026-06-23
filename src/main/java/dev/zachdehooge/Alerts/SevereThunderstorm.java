@@ -14,7 +14,7 @@ import java.util.List;
 
 public class SevereThunderstorm {
 
-    private static final String TSTORM_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=severe%20thunderstorm%20warning,severe%20thunderstorm%20watch,thunderstorm%20warning,thunderstorm%20watch";
+    private static final String TSTORM_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=severe%20thunderstorm%20warning,thunderstorm%20warning";
 
     public List<AlertEmbed> getSvrTStorm() {
         List<AlertEmbed> embeds = new ArrayList<>();
