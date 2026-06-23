@@ -17,7 +17,7 @@ import dev.zachdehooge.AmbientColors.*;
 
 public class PDS {
 
-    private static final String TORNADO_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=tornado%20warning,tornado%20emergency";
+    private static final String TORNADO_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=tornado%20warning,tornado%20emergency,tornado%20watch";
     private static final String TSTORM_URL  = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=severe%20thunderstorm%20warning,severe%20thunderstorm%20watch,thunderstorm%20warning,thunderstorm%20watch";
     private static final String WINTER_URL  = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=winter%20storm%20warning,winter%20storm%20watch,blizzard%20warning,blizzard%20watch,ice%20storm%20warning,ice%20storm%20watch,heavy%20snow%20warning,snow%20squall%20warning,lake%20effect%20snow%20warning,freezing%20rain%20advisory,wind%20chill%20warning";
     private static final String FLOOD_URL   = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=flash%20flood%20emergency,flash%20flood%20warning,flash%20flood%20watch,flood%20warning,flood%20watch";
@@ -29,32 +29,32 @@ public class PDS {
 
     public List<AlertEmbed> getPDS() {
         CompletableFuture<List<AlertEmbed>> tornadoCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(TORNADO_URL, "🌪️", (event, _) -> {
-                    String e = event.toLowerCase();
-                    if (e.contains("confirmed") || e.contains("destructive") || e.contains("damaging") || e.contains("observed") || e.contains("tornado emergency") || e.contains("particularly dangerous situation"))
+                fetchAlerts(TORNADO_URL, "🌪️", (_, description) -> {
+                    String d = description.toLowerCase();
+                    if (d.contains("confirmed") || d.contains("destructive") || d.contains("damaging") || d.contains("observed") || d.contains("tornado emergency") || d.contains("particularly dangerous situation"))
                         return AmbientColors.PDS_WARNING;
-                    return event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> winterCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(WINTER_URL, "❄", (event, _) -> {
-                    if (event.toLowerCase().contains("blizzard")) return AmbientColors.PDS_WARNING;
-                    return event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+                fetchAlerts(WINTER_URL, "❄", (_, description) -> {
+                    if (description.toLowerCase().contains("blizzard")) return AmbientColors.PDS_WARNING;
+                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> tstormCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(TSTORM_URL, "🌩️", (event, _) -> {
-                    String e = event.toLowerCase();
-                    if (e.contains("destructive") || e.contains("considerable")){
+                fetchAlerts(TSTORM_URL, "🌩️", (_, description) -> {
+                    String d = description.toLowerCase();
+                    if (d.contains("destructive") || d.contains("considerable")){
                         return AmbientColors.PDS_WARNING;}
-                    return event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> floodCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(FLOOD_URL, "🌊", (event, _) -> {
-                    String e = event.toLowerCase();
-                    if (e.contains("emergency") || e.contains("catastrophic") || e.contains("life-threatening") || e.contains("particularly dangerous situation")){return AmbientColors.PDS_WARNING;}
-                    return event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+                fetchAlerts(FLOOD_URL, "🌊", (_, description) -> {
+                    String d = description.toLowerCase();
+                    if (d.contains("emergency") || d.contains("catastrophic") || d.contains("life-threatening") || d.contains("particularly dangerous situation")){return AmbientColors.PDS_WARNING;}
+                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         List<AlertEmbed> embeds = new ArrayList<>();
