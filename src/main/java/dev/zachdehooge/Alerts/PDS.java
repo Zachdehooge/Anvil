@@ -31,7 +31,7 @@ public class PDS {
         CompletableFuture<List<AlertEmbed>> tornadoCf = CompletableFuture.supplyAsync(() ->
                 fetchAlerts(TORNADO_URL, "🌪️", (_, description) -> {
                     String d = description.toLowerCase();
-                    if (d.contains("confirmed") || d.contains("destructive") || d.contains("damaging") || d.contains("observed") || d.contains("tornado emergency") || d.contains("particularly dangerous situation"))
+                    if (d.contains("confirmed") || d.contains("destructive") || d.contains("damaging tornado") || d.contains("observed") || d.contains("tornado emergency") || d.contains("particularly dangerous situation"))
                         return AmbientColors.PDS_WARNING;
                     return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
