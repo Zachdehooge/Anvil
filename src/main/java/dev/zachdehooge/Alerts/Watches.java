@@ -65,6 +65,9 @@ public class Watches {
                 String event      = props.get("event").asText();
                 String areaDesc   = props.get("areaDesc").asText();
                 String description = props.get("description").asText();
+                String severity = props.get("severity").asString();
+                String category = props.get("category").asString();
+                String nwsOffice = props.get("senderName").asString();
                 String expiresRaw = props.path("expires").asText(null);
 
                 Color color = colorResolver.resolve(event, description);
@@ -79,8 +82,10 @@ public class Watches {
                 }
 
                 EmbedBuilder builder = new EmbedBuilder()
-                        .setTitle(emoji + " " + event, url)
+                        .setTitle(nwsOffice + " has issued a:\n" + emoji + " " + event, url)
                         .setDescription("**Area:** " + areaDesc)
+                        .addField("Severity: ", severity, false)
+                        .addField("Category: ", category, false)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
 

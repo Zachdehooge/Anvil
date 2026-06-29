@@ -31,6 +31,9 @@ public class Flood {
                 String event = props.get("event").asText();
                 String areaDesc = props.get("areaDesc").asText();
                 String description = props.get("description").asText();
+                String severity = props.get("severity").asString();
+                String category = props.get("category").asString();
+                String nwsOffice = props.get("senderName").asString();
                 String expiresRaw = props.path("expires").asText(null);
 
                 Color color = event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
@@ -43,8 +46,10 @@ public class Flood {
                 }
 
                 EmbedBuilder builder = new EmbedBuilder()
-                        .setTitle("🌊 " + event, FLOOD_URL)
+                        .setTitle(nwsOffice + " has issued a:\n🌊 " + event, FLOOD_URL)
                         .setDescription("**Area:** " + areaDesc)
+                        .addField("Severity: ", severity, false)
+                        .addField("Category: ", category, false)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
 

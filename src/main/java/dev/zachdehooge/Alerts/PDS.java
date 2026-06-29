@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import dev.zachdehooge.AmbientColors.*;
 
 public class PDS {
 
@@ -24,34 +23,41 @@ public class PDS {
 
     @FunctionalInterface
     private interface ColorResolver {
-        Color resolve(String event, String description);
+        Color resolve(String event, String description, String thunderstormDamageThreat, String tornadoDetection, String tornadoDamageThreat);
     }
 
     public List<AlertEmbed> getPDS() {
         CompletableFuture<List<AlertEmbed>> tornadoCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(TORNADO_URL, "🌪️", (_, description) -> {
+                fetchAlerts(TORNADO_URL, "🌪️", (_, description, _, td, torDamage) -> {
+
                     String d = description.toLowerCase();
-                    if (d.contains("confirmed") || d.contains("destructive") || d.contains("damaging tornado") || d.contains("observed") || d.contains("tornado emergency") || d.contains("particularly dangerous situation"))
+                    String tornadoDetect = td.toLowerCase();
+                    String tornadoDamage = torDamage.toLowerCase();
+
+                    if (tornadoDetect.toLowerCase().contains("OBSERVED") || tornadoDamage.toLowerCase().contains("CONSIDERABLE") || tornadoDamage.toLowerCase().contains("CATASTROPHIC"))
                         return AmbientColors.PDS_WARNING;
-                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+                    return d.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> winterCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(WINTER_URL, "❄", (_, description) -> {
+                fetchAlerts(WINTER_URL, "❄", (_, description, _, _, _) -> {
                     if (description.toLowerCase().contains("blizzard")) return AmbientColors.PDS_WARNING;
                     return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> tstormCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(TSTORM_URL, "🌩️", (_, description) -> {
+                fetchAlerts(TSTORM_URL, "🌩️", (_, description, param, td, _) -> {
                     String d = description.toLowerCase();
-                    if (d.contains("destructive") || d.contains("considerable")){
+                    String p = param.toLowerCase();
+                    String tornado = td.toLowerCase();
+
+                    if (p.toLowerCase().contains("CONSIDERABLE") || p.toLowerCase().contains("DESTRUCTIVE") || tornado.toLowerCase().contains("POSSIBLE")){
                         return AmbientColors.PDS_WARNING;}
-                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+                    return d.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> floodCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(FLOOD_URL, "🌊", (_, description) -> {
+                fetchAlerts(FLOOD_URL, "🌊", (_, description, _, _, _) -> {
                     String d = description.toLowerCase();
                     if (d.contains("emergency") || d.contains("catastrophic") || d.contains("life-threatening") || d.contains("particularly dangerous situation")){return AmbientColors.PDS_WARNING;}
                     return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
@@ -77,14 +83,21 @@ public class PDS {
 
             for (JsonNode feature : features) {
                 JsonNode props = feature.get("properties");
+                JsonNode parameters = props.get("parameters");
 
-                String alertId    = feature.path("id").asText("");
-                String event      = props.get("event").asText();
-                String areaDesc   = props.get("areaDesc").asText();
-                String description = props.get("description").asText();
-                String expiresRaw = props.path("expires").asText(null);
+                String alertId    = feature.path("id").asString("");
+                String event      = props.get("event").asString();
+                String areaDesc   = props.get("areaDesc").asString();
+                String description = props.get("description").asString();
+                String nwsOffice = props.get("senderName").asString();
+                String thunderstormDamageThreat = parameters.get("thunderstormDamageThreat").asString();
+                String maxWindGust = parameters.get("maxWindGust").asString();
+                String maxHailSize = parameters.get("maxHailSize").asString();
+                String tornadoDetection = parameters.get("tornadoDetection").asString();
+                String tornadoDamageThreat = parameters.get("tornadoDetection").asString();
+                String expiresRaw = props.path("expires").asString(null);
 
-                Color color = colorResolver.resolve(event, description);
+                Color color = colorResolver.resolve(event, description, thunderstormDamageThreat, tornadoDetection, tornadoDamageThreat);
 
                 if (!color.equals(AmbientColors.PDS_WARNING)) continue;
 
@@ -96,8 +109,13 @@ public class PDS {
                 }
 
                 EmbedBuilder builder = new EmbedBuilder()
-                        .setTitle(emoji + " " + event, url)
+                        .setTitle(nwsOffice + " has issued a:\n" + emoji + " " + event, url)
                         .setDescription("**Area:** " + areaDesc)
+                        .addField("Damage Threat: ", thunderstormDamageThreat, false)
+                        .addField("Max Wind Gust: ", maxWindGust, false)
+                        .addField("Max Hail Size: ", maxHailSize, false)
+                        .addField("Tornado: ", tornadoDetection, false)
+                        .addField("Tornado Damage: ", tornadoDamageThreat, false)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
 

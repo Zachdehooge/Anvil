@@ -31,6 +31,9 @@ public class SpecialWeatherStatement {
                 String event = props.get("event").asText();
                 String areaDesc = props.get("areaDesc").asText();
                 String description = props.get("description").asText();
+                String severity = props.get("severity").asString();
+                String category = props.get("category").asString();
+                String nwsOffice = props.get("senderName").asString();
                 String expiresRaw = props.path("expires").asText(null);
 
                 Color color = AmbientColors.SWS;
@@ -42,8 +45,10 @@ public class SpecialWeatherStatement {
                 }
 
                 EmbedBuilder builder = new EmbedBuilder()
-                        .setTitle("⚠️ " + event, SWS_URL)
+                        .setTitle(nwsOffice + " has issued a:\n⚠️ " + event, SWS_URL)
                         .setDescription("**Area:** " + areaDesc)
+                        .addField("Severity: ", severity, false)
+                        .addField("Category: ", category, false)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
 
