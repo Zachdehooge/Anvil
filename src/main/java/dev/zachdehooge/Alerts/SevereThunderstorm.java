@@ -26,14 +26,17 @@ public class SevereThunderstorm {
 
             for (JsonNode feature : features) {
                 JsonNode props = feature.get("properties");
+                JsonNode parameters = props.get("parameters");
 
                 String alertId = feature.path("id").asText("");
                 String event = props.get("event").asText();
                 String areaDesc = props.get("areaDesc").asText();
                 String description = props.get("description").asText();
                 String severity = props.get("severity").asString();
-                String category = props.get("category").asString();
                 String nwsOffice = props.get("senderName").asString();
+                String maxWindGust = parameters.get("maxWindGust").asString();
+                String maxHailSize = parameters.get("maxHailSize").asString();
+                String tornadoDetection = parameters.get("tornadoDetection").asString();
                 String expiresRaw = props.path("expires").asText(null);
 
                 Color color = event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
@@ -49,8 +52,9 @@ public class SevereThunderstorm {
                         .setTitle(nwsOffice + " has issued a:\n🌩️ " + event, TSTORM_URL)
                         .setDescription("**Area:** " + areaDesc)
                         .addField("Severity: ", severity, false)
-                        .addField("Category: ", category, false)
-                        .setColor(color)
+                        .addField("Max Wind Gust: ", maxWindGust, false)
+                        .addField("Max Hail Size: ", maxHailSize, false)
+                        .addField("Tornado: ", tornadoDetection, false)
                         .addField("Expires:", expiresValue, false);
 
                 if (expiresTime != null) {
