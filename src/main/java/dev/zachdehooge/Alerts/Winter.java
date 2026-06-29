@@ -31,8 +31,6 @@ public class Winter {
                 String event = props.get("event").asText();
                 String areaDesc = props.get("areaDesc").asText();
                 String description = props.get("description").asText();
-                String severity = props.get("severity").asString();
-                String category = props.get("category").asString();
                 String nwsOffice = props.get("senderName").asString();
                 String expiresRaw = props.path("expires").asText(null);
 
@@ -48,8 +46,6 @@ public class Winter {
                 EmbedBuilder builder = new EmbedBuilder()
                         .setTitle(nwsOffice + " has issued a:\n❄ " + event, WINTER_URL)
                         .setDescription("**Area:** " + areaDesc)
-                        .addField("Severity: ", severity, false)
-                        .addField("Category: ", category, false)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
 

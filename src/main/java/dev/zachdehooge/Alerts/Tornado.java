@@ -48,8 +48,6 @@ public class Tornado {
                 EmbedBuilder builder = new EmbedBuilder()
                         .setTitle(nwsOffice + " has issued a:\n🌪️ " + event, TORNADO_URL)
                         .setDescription("**Area:** " + areaDesc)
-                        .addField("Severity: ", severity, false)
-                        .addField("Category: ", category, false)
                         .setColor(color)
                         .addField("Expires:", expiresValue, false);
 

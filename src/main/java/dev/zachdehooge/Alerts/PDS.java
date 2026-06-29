@@ -34,7 +34,7 @@ public class PDS {
                     String tornadoDetect = td.toLowerCase();
                     String tornadoDamage = torDamage.toLowerCase();
 
-                    if (tornadoDetect.toLowerCase().contains("OBSERVED") || tornadoDamage.toLowerCase().contains("CONSIDERABLE") || tornadoDamage.toLowerCase().contains("CATASTROPHIC"))
+                    if (tornadoDetect.contains("OBSERVED") || tornadoDamage.contains("CONSIDERABLE") || tornadoDamage.contains("CATASTROPHIC"))
                         return AmbientColors.PDS_WARNING;
                     return d.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
@@ -42,18 +42,18 @@ public class PDS {
         CompletableFuture<List<AlertEmbed>> winterCf = CompletableFuture.supplyAsync(() ->
                 fetchAlerts(WINTER_URL, "❄", (_, description, _, _, _) -> {
                     if (description.toLowerCase().contains("blizzard")) return AmbientColors.PDS_WARNING;
-                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+                    return description.contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> tstormCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(TSTORM_URL, "🌩️", (_, description, param, td, _) -> {
+                fetchAlerts(TSTORM_URL, "🌩️", (_, description, param, tornadoDetection, _) -> {
                     String d = description.toLowerCase();
                     String p = param.toLowerCase();
-                    String tornado = td.toLowerCase();
+                    String tornado = tornadoDetection.toLowerCase();
 
-                    if (p.toLowerCase().contains("CONSIDERABLE") || p.toLowerCase().contains("DESTRUCTIVE") || tornado.toLowerCase().contains("POSSIBLE")){
+                    if (p.contains("CONSIDERABLE") || p.contains("DESTRUCTIVE") || tornado.contains("POSSIBLE")){
                         return AmbientColors.PDS_WARNING;}
-                    return d.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+                    return d.contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> floodCf = CompletableFuture.supplyAsync(() ->
