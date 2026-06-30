@@ -51,7 +51,6 @@ public class SevereThunderstorm {
                 EmbedBuilder builder = new EmbedBuilder()
                         .setTitle(nwsOffice + " has issued a:\n🌩️ " + event, TSTORM_URL)
                         .setDescription("**Area:** " + areaDesc)
-                        .addField("Severity: ", severity, false)
                         .addField("Max Wind Gust: ", maxWindGust, false)
                         .addField("Max Hail Size: ", maxHailSize, false)
                         .addField("Tornado: ", tornadoDetection, false)
