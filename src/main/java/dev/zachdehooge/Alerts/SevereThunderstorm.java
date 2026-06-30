@@ -55,6 +55,7 @@ public class SevereThunderstorm {
                         .addField("Max Wind Gust: ", maxWindGust, false)
                         .addField("Max Hail Size: ", maxHailSize, false)
                         .addField("Tornado: ", tornadoDetection, false)
+                        .setColor(color)
                         .addField("Expires:", expiresValue, false);
 
                 if (expiresTime != null) {
