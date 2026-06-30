@@ -28,16 +28,16 @@ public class SevereThunderstorm {
                 JsonNode props = feature.get("properties");
                 JsonNode parameters = props.get("parameters");
 
-                String alertId = feature.path("id").asText("");
-                String event = props.get("event").asText();
-                String areaDesc = props.get("areaDesc").asText();
-                String description = props.get("description").asText();
+                String alertId = feature.path("id").asString("");
+                String event = props.get("event").asString();
+                String areaDesc = props.get("areaDesc").asString();
+                String description = props.get("description").asString();
                 String severity = props.get("severity").asString();
                 String nwsOffice = props.get("senderName").asString();
-                String maxWindGust = parameters.get("maxWindGust").asString();
-                String maxHailSize = parameters.get("maxHailSize").asString();
-                String tornadoDetection = parameters.get("tornadoDetection").asString();
-                String expiresRaw = props.path("expires").asText(null);
+                String maxWindGust = getParam(parameters, "maxWindGust");
+                String maxHailSize = getParam(parameters, "maxHailSize");
+                String tornadoDetection = getParam(parameters, "tornadoDetection");
+                String expiresRaw = props.path("expires").asString(null);
 
                 Color color = event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
 
@@ -69,5 +69,11 @@ public class SevereThunderstorm {
         }
 
         return embeds;
+    }
+
+    private String getParam(JsonNode parameters, String key) {
+        if (parameters == null || !parameters.has(key)) return "N/A";
+        JsonNode arr = parameters.get(key);
+        return (arr != null && arr.isArray() && arr.size() > 0) ? arr.get(0).asString() : "N/A";
     }
 }

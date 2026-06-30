@@ -26,15 +26,16 @@ public class Tornado {
 
             for (JsonNode feature : features) {
                 JsonNode props = feature.get("properties");
+                JsonNode parameters = props.get("parameters");
 
-                String alertId = feature.path("id").asText("");
-                String event = props.get("event").asText();
-                String areaDesc = props.get("areaDesc").asText();
-                String description = props.get("description").asText();
-                String severity = props.get("severity").asString();
-                String category = props.get("category").asString();
+                String alertId = feature.path("id").asString("");
+                String event = props.get("event").asString();
+                String areaDesc = props.get("areaDesc").asString();
+                String description = props.get("description").asString();
                 String nwsOffice = props.get("senderName").asString();
-                String expiresRaw = props.path("expires").asText(null);
+                String tornadoDetection = getParam(parameters, "tornadoDetection");
+                String tornadoDamageThreat = getParam(parameters, "tornadoDamageThreat");
+                String expiresRaw = props.path("expires").asString(null);
 
                 Color color = event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
 
@@ -49,6 +50,8 @@ public class Tornado {
                         .setTitle(nwsOffice + " has issued a:\n🌪️ " + event, TORNADO_URL)
                         .setDescription("**Area:** " + areaDesc)
                         .setColor(color)
+                        .addField("Tornado Detection:", tornadoDetection, false)
+                        .addField("Tornado Damage Threat:", tornadoDamageThreat, false)
                         .addField("Expires:", expiresValue, false);
 
                 if (expiresTime != null) {
@@ -63,5 +66,11 @@ public class Tornado {
         }
 
         return embeds;
+    }
+
+    private String getParam(JsonNode parameters, String key) {
+        if (parameters == null || !parameters.has(key)) return "N/A";
+        JsonNode arr = parameters.get(key);
+        return (arr != null && arr.isArray() && arr.size() > 0) ? arr.get(0).asString() : "N/A";
     }
 }

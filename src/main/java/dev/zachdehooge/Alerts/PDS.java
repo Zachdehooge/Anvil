@@ -23,43 +23,40 @@ public class PDS {
 
     @FunctionalInterface
     private interface ColorResolver {
-        Color resolve(String event, String description, String thunderstormDamageThreat, String tornadoDetection, String tornadoDamageThreat);
+        Color resolve(String event, String description, JsonNode parameters);
     }
 
     public List<AlertEmbed> getPDS() {
         CompletableFuture<List<AlertEmbed>> tornadoCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(TORNADO_URL, "🌪️", (_, description, _, td, torDamage) -> {
-
-                    String d = description.toLowerCase();
-                    String tornadoDetect = td.toLowerCase();
-                    String tornadoDamage = torDamage.toLowerCase();
-
-                    if (tornadoDetect.contains("OBSERVED") || tornadoDamage.contains("CONSIDERABLE") || tornadoDamage.contains("CATASTROPHIC"))
+                fetchAlerts(TORNADO_URL, "🌪️", (_, description, params) -> {
+                    String tornadoDetect = getParam(params, "tornadoDetection").toLowerCase();
+                    String tornadoDamage = getParam(params, "tornadoDamageThreat").toLowerCase();
+                    if (tornadoDetect.contains("observed") || tornadoDamage.contains("considerable") || tornadoDamage.contains("catastrophic"))
                         return AmbientColors.PDS_WARNING;
-                    return d.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> winterCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(WINTER_URL, "❄", (_, description, _, _, _) -> {
+                fetchAlerts(WINTER_URL, "❄", (_, description, _) -> {
                     if (description.toLowerCase().contains("blizzard")) return AmbientColors.PDS_WARNING;
-                    return description.contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> tstormCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(TSTORM_URL, "🌩️", (_, description, param, tornadoDetection, _) -> {
-                    String d = description.toLowerCase();
-                    String p = param.toLowerCase();
-                    String tornado = tornadoDetection.toLowerCase();
-
-                    if (p.contains("CONSIDERABLE") || p.contains("DESTRUCTIVE") || tornado.contains("POSSIBLE")){
-                        return AmbientColors.PDS_WARNING;}
-                    return d.contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+                fetchAlerts(TSTORM_URL, "🌩️", (_, description, params) -> {
+                    String p = getParam(params, "thunderstormDamageThreat").toLowerCase();
+                    String tornado = getParam(params, "tornadoDetection").toLowerCase();
+                    if (p.contains("considerable") || p.contains("destructive") || tornado.contains("possible"))
+                        return AmbientColors.PDS_WARNING;
+                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
         CompletableFuture<List<AlertEmbed>> floodCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(FLOOD_URL, "🌊", (_, description, _, _, _) -> {
-                    String d = description.toLowerCase();
-                    if (d.contains("emergency") || d.contains("catastrophic") || d.contains("life-threatening") || d.contains("particularly dangerous situation")){return AmbientColors.PDS_WARNING;}
+                fetchAlerts(FLOOD_URL, "🌊", (_, description, params) -> {
+                    String detection = getParam(params, "flashFloodDetection").toLowerCase();
+                    String damage = getParam(params, "flashFloodDamageThreat").toLowerCase();
+                    if (detection.contains("observed") || damage.contains("considerable") || damage.contains("catastrophic"))
+                        return AmbientColors.PDS_WARNING;
                     return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
@@ -90,14 +87,14 @@ public class PDS {
                 String areaDesc   = props.get("areaDesc").asString();
                 String description = props.get("description").asString();
                 String nwsOffice = props.get("senderName").asString();
-                String thunderstormDamageThreat = parameters.get("thunderstormDamageThreat").asString();
-                String maxWindGust = parameters.get("maxWindGust").asString();
-                String maxHailSize = parameters.get("maxHailSize").asString();
-                String tornadoDetection = parameters.get("tornadoDetection").asString();
-                String tornadoDamageThreat = parameters.get("tornadoDetection").asString();
+                String thunderstormDamageThreat = getParam(parameters, "thunderstormDamageThreat");
+                String maxWindGust = getParam(parameters, "maxWindGust");
+                String maxHailSize = getParam(parameters, "maxHailSize");
+                String tornadoDetection = getParam(parameters, "tornadoDetection");
+                String tornadoDamageThreat = getParam(parameters, "tornadoDamageThreat");
                 String expiresRaw = props.path("expires").asString(null);
 
-                Color color = colorResolver.resolve(event, description, thunderstormDamageThreat, tornadoDetection, tornadoDamageThreat);
+                Color color = colorResolver.resolve(event, description, parameters);
 
                 if (!color.equals(AmbientColors.PDS_WARNING)) continue;
 
@@ -129,5 +126,11 @@ public class PDS {
             e.printStackTrace();
         }
         return embeds;
+    }
+
+    private String getParam(JsonNode parameters, String key) {
+        if (parameters == null || !parameters.has(key)) return "N/A";
+        JsonNode arr = parameters.get(key);
+        return (arr != null && arr.isArray() && arr.size() > 0) ? arr.get(0).asString() : "N/A";
     }
 }
