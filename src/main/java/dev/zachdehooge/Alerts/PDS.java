@@ -53,9 +53,9 @@ public class PDS {
 
         CompletableFuture<List<AlertEmbed>> floodCf = CompletableFuture.supplyAsync(() ->
                 fetchAlerts(FLOOD_URL, "🌊", (_, description, params) -> {
-                    String detection = getParam(params, "flashFloodDetection").toLowerCase();
+//                    String detection = getParam(params, "flashFloodDetection").toLowerCase();
                     String damage = getParam(params, "flashFloodDamageThreat").toLowerCase();
-                    if (detection.contains("observed") || damage.contains("considerable") || damage.contains("catastrophic"))
+                    if (damage.contains("considerable") || damage.contains("catastrophic"))
                         return AmbientColors.PDS_WARNING;
                     return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
