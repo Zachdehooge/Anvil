@@ -20,7 +20,7 @@ public class Watches {
     private static final String TORNADO_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=tornado%20watch";
     private static final String TSTORM_URL  = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=severe%20thunderstorm%20watch,thunderstorm%20watch";
     private static final String WINTER_URL  = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=winter%20storm%20watch,blizzard%20watch,ice%20storm%20watch";
-    private static final String FLOOD_URL   = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=flash%20flood%20watch,flood%20watch";
+//    private static final String FLOOD_URL   = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=flash%20flood%20watch,flood%20watch";
 
     @FunctionalInterface
     private interface ColorResolver {
@@ -37,11 +37,11 @@ public class Watches {
         CompletableFuture<List<AlertEmbed>> tstormCf = CompletableFuture.supplyAsync(() ->
                 fetchAlerts(TSTORM_URL, "🌩️", (event, _) ->AmbientColors.WATCH));
 
-        CompletableFuture<List<AlertEmbed>> floodCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(FLOOD_URL, "🌊", (event, _) -> AmbientColors.WATCH));
+//        CompletableFuture<List<AlertEmbed>> floodCf = CompletableFuture.supplyAsync(() ->
+//                fetchAlerts(FLOOD_URL, "🌊", (event, _) -> AmbientColors.WATCH));
 
         List<AlertEmbed> embeds = new ArrayList<>();
-        for (CompletableFuture<List<AlertEmbed>> cf : List.of(tornadoCf, winterCf, tstormCf, floodCf)) {
+        for (CompletableFuture<List<AlertEmbed>> cf : List.of(tornadoCf, winterCf, tstormCf/*, floodCf*/)) {
             try {
                 embeds.addAll(cf.get(30, TimeUnit.SECONDS));
             } catch (Exception e) {

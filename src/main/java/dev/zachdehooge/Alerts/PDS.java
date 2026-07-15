@@ -51,17 +51,17 @@ public class PDS {
                     return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
                 }));
 
-        CompletableFuture<List<AlertEmbed>> floodCf = CompletableFuture.supplyAsync(() ->
-                fetchAlerts(FLOOD_URL, "🌊", (_, description, params) -> {
+//        CompletableFuture<List<AlertEmbed>> floodCf = CompletableFuture.supplyAsync(() ->
+//                fetchAlerts(FLOOD_URL, "🌊", (_, description, params) -> {
 //                    String detection = getParam(params, "flashFloodDetection").toLowerCase();
-                    String damage = getParam(params, "flashFloodDamageThreat").toLowerCase();
-                    if (damage.contains("considerable") || damage.contains("catastrophic"))
-                        return AmbientColors.PDS_WARNING;
-                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
-                }));
+//                    String damage = getParam(params, "flashFloodDamageThreat").toLowerCase();
+//                    if (damage.contains("considerable") || damage.contains("catastrophic"))
+//                        return AmbientColors.PDS_WARNING;
+//                    return description.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
+//                }));
 
         List<AlertEmbed> embeds = new ArrayList<>();
-        for (CompletableFuture<List<AlertEmbed>> cf : List.of(tornadoCf, winterCf, tstormCf, floodCf)) {
+        for (CompletableFuture<List<AlertEmbed>> cf : List.of(tornadoCf, winterCf, tstormCf/*, floodCf*/)) {
             try {
                 embeds.addAll(cf.get(30, TimeUnit.SECONDS));
             } catch (Exception e) {
