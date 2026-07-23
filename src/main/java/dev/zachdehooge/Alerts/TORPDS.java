@@ -14,12 +14,11 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-public class PDS {
+public class TORPDS {
 
     private static final String TORNADO_URL = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=tornado%20warning,tornado%20emergency,tornado%20watch";
     private static final String TSTORM_URL  = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=severe%20thunderstorm%20warning,severe%20thunderstorm%20watch,thunderstorm%20warning,thunderstorm%20watch";
     private static final String WINTER_URL  = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=winter%20storm%20warning,winter%20storm%20watch,blizzard%20warning,blizzard%20watch,ice%20storm%20warning,ice%20storm%20watch,heavy%20snow%20warning,snow%20squall%20warning,lake%20effect%20snow%20warning,freezing%20rain%20advisory,wind%20chill%20warning";
-    private static final String FLOOD_URL   = "https://api.weather.gov/alerts/active?status=actual&message_type=alert,update&event=flash%20flood%20emergency,flash%20flood%20warning,flash%20flood%20watch,flood%20warning,flood%20watch";
 
     @FunctionalInterface
     private interface ColorResolver {
@@ -61,7 +60,7 @@ public class PDS {
 //                }));
 
         List<AlertEmbed> embeds = new ArrayList<>();
-        for (CompletableFuture<List<AlertEmbed>> cf : List.of(tornadoCf, winterCf, tstormCf/*, floodCf*/)) {
+        for (CompletableFuture<List<AlertEmbed>> cf : List.of(tornadoCf, winterCf)) {
             try {
                 embeds.addAll(cf.get(30, TimeUnit.SECONDS));
             } catch (Exception e) {

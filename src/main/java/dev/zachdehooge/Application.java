@@ -101,7 +101,10 @@ public class Application extends ListenerAdapter {
                 .addCommands(slash("setswschannel", "Sets the channel for Special Weather Statements")
                         .addOption(STRING, "channel", "Channel ID or mention", true)
                         .setIntegrationTypes(IntegrationType.ALL))
-                .addCommands(slash("setpdschannel", "Sets the channel for PDS alerts (tornado, severe, winter, flood)")
+                .addCommands(slash("settorpdschannel", "Sets the channel for TORPDS alerts (tornado)")
+                        .addOption(STRING, "channel", "Channel ID or mention", true)
+                        .setIntegrationTypes(IntegrationType.ALL))
+                .addCommands(slash("setsvrpdschannel", "Sets the channel for SVRPDS alerts (severe thunderstorms)")
                         .addOption(STRING, "channel", "Channel ID or mention", true)
                         .setIntegrationTypes(IntegrationType.ALL))
                 .addCommands(slash("setfloodchannel", "Sets the channel for flood alerts")
@@ -130,7 +133,8 @@ public class Application extends ListenerAdapter {
             allTypes.put("tornado", new Tornado().getTornado());
             allTypes.put("winter",  new Winter().getWinter());
             allTypes.put("sws",     new SpecialWeatherStatement().getSWS());
-            allTypes.put("pds",     new PDS().getPDS());
+            allTypes.put("torpds",  new TORPDS().getPDS());
+            allTypes.put("svrpds",  new SVRPDS().getPDS());
             allTypes.put("flood",   new Flood().getFlood());
             allTypes.put("watch",   new Watches().getWatch());
             allTypes.put("tempest", new Tempest().getObs());
@@ -167,7 +171,8 @@ public class Application extends ListenerAdapter {
             alertsByType.put("tornado", new Tornado().getTornado());
             alertsByType.put("winter",  new Winter().getWinter());
             alertsByType.put("sws",     new SpecialWeatherStatement().getSWS());
-            alertsByType.put("pds",     new PDS().getPDS());
+            alertsByType.put("torpds",     new TORPDS().getPDS());
+            alertsByType.put("svrpds",     new SVRPDS().getPDS());
             alertsByType.put("flood",   new Flood().getFlood());
             alertsByType.put("watch",   new Watches().getWatch());
 
@@ -431,7 +436,8 @@ public class Application extends ListenerAdapter {
             case "settorchannel"     -> "tornado";
             case "setwinterchannel"  -> "winter";
             case "setswschannel"     -> "sws";
-            case "setpdschannel"     -> "pds";
+            case "settorpdschannel"     -> "torpds";
+            case "setsvrpdschannel"     -> "svrpds";
             case "setfloodchannel"   -> "flood";
             case "setwatchchannel"   -> "watch";
             case "setreportchannel"  -> "report";
@@ -538,7 +544,8 @@ public class Application extends ListenerAdapter {
         channelDefaults.put("severe",  1514265112108863559L);
         channelDefaults.put("winter",  1514265147227508912L);
         channelDefaults.put("sws",     1514265128957116496L);
-        channelDefaults.put("pds",     1514376160765808740L);
+        channelDefaults.put("torpds",     1514376160765808740L);
+        channelDefaults.put("svrpds",     1529919999597088829L);
         channelDefaults.put("flood",   1514663611035943073L);
         channelDefaults.put("watch",   1518727400278458440L);
         channelDefaults.put("report",  1519027873686487101L);
