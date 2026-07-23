@@ -544,7 +544,7 @@ public class Application extends ListenerAdapter {
         channelDefaults.put("severe",  1514265112108863559L);
         channelDefaults.put("winter",  1514265147227508912L);
         channelDefaults.put("sws",     1514265128957116496L);
-        channelDefaults.put("torpds",     1514376160765808740L);
+        channelDefaults.put("torpds",     1529920418000142466L);
         channelDefaults.put("svrpds",     1529919999597088829L);
         channelDefaults.put("flood",   1514663611035943073L);
         channelDefaults.put("watch",   1518727400278458440L);
