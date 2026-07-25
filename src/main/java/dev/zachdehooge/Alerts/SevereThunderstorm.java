@@ -32,7 +32,6 @@ public class SevereThunderstorm {
                 String event = props.get("event").asString();
                 String areaDesc = props.get("areaDesc").asString();
                 String description = props.get("description").asString();
-                String severity = props.get("severity").asString();
                 String nwsOffice = props.get("senderName").asString();
                 String maxWindGust = getParam(parameters, "maxWindGust");
                 String maxHailSize = getParam(parameters, "maxHailSize");
