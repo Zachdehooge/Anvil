@@ -2,6 +2,7 @@ package dev.zachdehooge.Alerts;
 
 import dev.zachdehooge.AlertEmbed;
 import dev.zachdehooge.AmbientColors;
+import dev.zachdehooge.Utilities.RadarSnippet;
 import net.dv8tion.jda.api.EmbedBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -26,6 +27,7 @@ public class SpecialWeatherStatement {
 
             for (JsonNode feature : features) {
                 JsonNode props = feature.get("properties");
+                JsonNode parameters = props.get("parameters");
 
                 String alertId = feature.path("id").asText("");
                 String event = props.get("event").asText();
@@ -33,6 +35,7 @@ public class SpecialWeatherStatement {
                 String description = props.get("description").asText();
                 String nwsOffice = props.get("senderName").asString();
                 String expiresRaw = props.path("expires").asText(null);
+                String sentRaw = props.path("sent").asText(null);
 
                 Color color = AmbientColors.SWS;
                 String expiresValue = "Unknown";
@@ -52,7 +55,14 @@ public class SpecialWeatherStatement {
                     builder.setTimestamp(expiresTime);
                 }
 
-                embeds.add(new AlertEmbed(alertId, builder.build(), description, event));
+                RadarSnippet.RadarImages radar = RadarSnippet.getRadarImages(getParam(parameters, "VTEC"), sentRaw);
+                String historyImageUrl = null;
+                if (radar != null) {
+                    builder.setImage(radar.compositeUrl());
+                    historyImageUrl = radar.historyUrl();
+                }
+
+                embeds.add(new AlertEmbed(alertId, builder.build(), description, event, historyImageUrl));
             }
 
         } catch (Exception e) {
@@ -60,5 +70,11 @@ public class SpecialWeatherStatement {
         }
 
         return embeds;
+    }
+
+    private String getParam(JsonNode parameters, String key) {
+        if (parameters == null || !parameters.has(key)) return null;
+        JsonNode arr = parameters.get(key);
+        return (arr != null && arr.isArray() && !arr.isEmpty()) ? arr.get(0).asString() : null;
     }
 }

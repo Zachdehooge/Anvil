@@ -2,6 +2,7 @@ package dev.zachdehooge.Alerts;
 
 import dev.zachdehooge.AlertEmbed;
 import dev.zachdehooge.AmbientColors;
+import dev.zachdehooge.Utilities.RadarSnippet;
 import net.dv8tion.jda.api.EmbedBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -32,12 +33,12 @@ public class SevereThunderstorm {
                 String event = props.get("event").asString();
                 String areaDesc = props.get("areaDesc").asString();
                 String description = props.get("description").asString();
-                String severity = props.get("severity").asString();
                 String nwsOffice = props.get("senderName").asString();
                 String maxWindGust = getParam(parameters, "maxWindGust");
                 String maxHailSize = getParam(parameters, "maxHailSize");
                 String tornadoDetection = getParam(parameters, "tornadoDetection");
                 String expiresRaw = props.path("expires").asString(null);
+                String sentRaw = props.path("sent").asString(null);
 
                 Color color = event.toLowerCase().contains("warning") ? AmbientColors.WARNING : AmbientColors.WATCH;
 
@@ -61,7 +62,14 @@ public class SevereThunderstorm {
                     builder.setTimestamp(expiresTime);
                 }
 
-                embeds.add(new AlertEmbed(alertId, builder.build(), description, event));
+                RadarSnippet.RadarImages radar = RadarSnippet.getRadarImages(getParam(parameters, "VTEC"), sentRaw);
+                String historyImageUrl = null;
+                if (radar != null) {
+                    builder.setImage(radar.compositeUrl());
+                    historyImageUrl = radar.historyUrl();
+                }
+
+                embeds.add(new AlertEmbed(alertId, builder.build(), description, event, historyImageUrl));
             }
 
         } catch (Exception e) {

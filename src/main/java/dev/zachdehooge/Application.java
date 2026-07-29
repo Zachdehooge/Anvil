@@ -238,16 +238,22 @@ public class Application extends ListenerAdapter {
                         List<String> pages = splitIntoPages(alert.fullDescription(), alert.embed().getDescription());
                         MessageEmbed firstPage = buildPagedEmbed(alert.embed(), pages.get(0), 1, pages.size());
 
+                        List<MessageEmbed> embedsToSend = new ArrayList<>();
+                        embedsToSend.add(firstPage);
+                        if (alert.historyImageUrl() != null) {
+                            embedsToSend.add(buildHistoryEmbed(alert.embed(), alert.historyImageUrl()));
+                        }
+
                         if (pages.size() > 1) {
                             pageCache.put(sessionId, new PageSession(alert.embed(), pages, new AtomicInteger(0)));
-                            channel.sendMessageEmbeds(firstPage)
+                            channel.sendMessageEmbeds(embedsToSend)
                                     .setComponents(buildButtons(sessionId, 0, pages.size()))
                                     .queue(
                                             msg -> logger.info("Posted {} alert to guild {}", alertType, guildId),
                                             err -> logger.error("Failed to post {} alert to guild {}: {}", alertType, guildId, err.getMessage())
                                     );
                         } else {
-                            channel.sendMessageEmbeds(firstPage)
+                            channel.sendMessageEmbeds(embedsToSend)
                                     .queue(
                                             msg -> logger.info("Posted {} alert to guild {}", alertType, guildId),
                                             err -> logger.error("Failed to post {} alert to guild {}: {}", alertType, guildId, err.getMessage())
@@ -368,6 +374,14 @@ public class Application extends ListenerAdapter {
         String desc = (base.getDescription() != null ? base.getDescription() + "\n\n" : "") + page;
         eb.setDescription(desc);
         if (total > 1) eb.setFooter("Page " + pageNum + " of " + total);
+        return eb.build();
+    }
+
+    private MessageEmbed buildHistoryEmbed(MessageEmbed base, String historyImageUrl) {
+        EmbedBuilder eb = new EmbedBuilder()
+                .setTitle("Storm Based Warning History")
+                .setImage(historyImageUrl);
+        if (base.getColor() != null) eb.setColor(base.getColor());
         return eb.build();
     }
 
