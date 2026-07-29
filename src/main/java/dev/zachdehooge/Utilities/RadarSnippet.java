@@ -27,6 +27,17 @@ public class RadarSnippet {
      * @return radar image URLs, or null if the VTEC string couldn't be parsed
      */
     public static RadarImages getRadarImages(String vtecRaw, String sentRaw) {
+        return getRadarImages(vtecRaw, sentRaw, true);
+    }
+
+    /**
+     * @param vtecRaw raw VTEC string from an alert's parameters, e.g. "/O.NEW.KRNK.SV.W.0132.260728T1451Z-260728T1545Z/"
+     * @param sentRaw the alert's "sent" timestamp, used to resolve the VTEC event year
+     * @param includeHistory whether to look up the Storm Based Warning history strip; when false,
+     *                       {@link RadarImages#historyUrl()} is always null and no extra lookup is made
+     * @return radar image URLs, or null if the VTEC string couldn't be parsed
+     */
+    public static RadarImages getRadarImages(String vtecRaw, String sentRaw, boolean includeHistory) {
         Vtec vtec = parseVtec(vtecRaw);
         if (vtec == null) return null;
 
@@ -41,7 +52,7 @@ public class RadarSnippet {
                 + "." + String.format("%04d", vtec.etn());
 
         String compositeUrl = RADMAP_URL + "?layers[]=nexrad&layers[]=sbw&layers[]=sbwh&layers[]=uscounties&vtec=" + vtecId;
-        String historyUrl = hasMultiplePanes(vtec, year) ? SBW_HISTORY_URL + "?vtec=" + vtecId : null;
+        String historyUrl = (includeHistory && hasMultiplePanes(vtec, year)) ? SBW_HISTORY_URL + "?vtec=" + vtecId : null;
 
         return new RadarImages(compositeUrl, historyUrl);
     }

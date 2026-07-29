@@ -92,14 +92,12 @@ public class Watches {
                     builder.setTimestamp(expiresTime);
                 }
 
-                RadarSnippet.RadarImages radar = RadarSnippet.getRadarImages(getParam(parameters, "VTEC"), sentRaw);
-                String historyImageUrl = null;
+                RadarSnippet.RadarImages radar = RadarSnippet.getRadarImages(getParam(parameters, "VTEC"), sentRaw, false);
                 if (radar != null) {
                     builder.setImage(radar.compositeUrl());
-                    historyImageUrl = radar.historyUrl();
                 }
 
-                embeds.add(new AlertEmbed(alertId, builder.build(), description, event, historyImageUrl));
+                embeds.add(new AlertEmbed(alertId, builder.build(), description, event));
             }
         } catch (Exception e) {
             e.printStackTrace();
