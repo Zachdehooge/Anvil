@@ -29,6 +29,9 @@ public class Commands {
         commands.addCommands(slash("gettempestobs", "Get Tempest observations")
         .setIntegrationTypes(IntegrationType.ALL));
 
+        commands.addCommands(slash("getoutlookone", "Get Day 1 Outlook")
+        .setIntegrationTypes(IntegrationType.ALL));
+
         commands.queue();
     }
 }

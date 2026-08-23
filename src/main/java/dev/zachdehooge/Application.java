@@ -120,6 +120,8 @@ public class Application extends ListenerAdapter {
                 .addCommands(slash("setreportchannel", "Sets the channel for the automated 11:59 PM UTC daily report")
                         .addOption(STRING, "channel", "Channel ID or mention", true)
                         .setIntegrationTypes(IntegrationType.ALL))
+                .addCommands(slash("getoutlookone", "Get Day 1 Outlook")
+                        .setIntegrationTypes(IntegrationType.ALL))
                 .queue();
 
         logger.info("Bot is ready");
