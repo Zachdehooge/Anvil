@@ -2,6 +2,7 @@ package dev.zachdehooge;
 
 import dev.zachdehooge.Alerts.*;
 import dev.zachdehooge.Utilities.Database;
+import dev.zachdehooge.Utilities.Outlooks;
 import io.github.cdimascio.dotenv.Dotenv;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
@@ -9,7 +10,10 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.channel.concrete.ForumChannel;
+import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
+import net.dv8tion.jda.api.entities.channel.concrete.ThreadChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
@@ -17,6 +21,10 @@ import net.dv8tion.jda.api.interactions.IntegrationType;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.requests.GatewayIntent;
+import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
+import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
+import net.dv8tion.jda.api.utils.FileUpload;
+import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
@@ -28,6 +36,7 @@ import java.awt.Color;
 import java.io.File;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
@@ -45,11 +54,18 @@ public class Application extends ListenerAdapter {
     private static final Logger logger = LoggerFactory.getLogger(Application.class);
     private static final int MAX_TRACKED_PIDS = 1000;
     private static final String CONFIG_FILE = "config.json";
+    private static final DateTimeFormatter UTC_STAMP =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'").withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter OUTLOOK_THREAD_DATE =
+            DateTimeFormatter.ofPattern("MMM d, yyyy").withZone(ZoneOffset.UTC);
     private final Database db = Database.getInstance();
     private JDA jda;
     private final Map<Long, Map<String, Long>> guildChannels = new ConcurrentHashMap<>();
     private final Map<Long, Set<String>> postedItems = new ConcurrentHashMap<>();
     private final LinkedHashSet<String> globalSeenPids = new LinkedHashSet<>();
+    private final Map<Integer, String> outlookIssuance = new ConcurrentHashMap<>();
+    /** guildId -> (UTC date "yyyy-MM-dd" -> the Discord thread that day's outlook updates are posted in). */
+    private final Map<Long, Map<String, Long>> outlookThreads = new ConcurrentHashMap<>();
     private final ObjectMapper mapper = new ObjectMapper();
     private final Map<String, PageSession> pageCache = new ConcurrentHashMap<>();
 
@@ -86,9 +102,12 @@ public class Application extends ListenerAdapter {
         reportScheduler.scheduleAtFixedRate(this::postDailyReport,
                 secondsUntilNextReportUTC(), 86400, TimeUnit.SECONDS);
 
+        ScheduledExecutorService outlookScheduler = Executors.newSingleThreadScheduledExecutor();
+        outlookScheduler.scheduleAtFixedRate(this::checkOutlooks, 20, 300, TimeUnit.SECONDS);
+
         logger.info("Loading Commands...");
 
-        jda.updateCommands()
+        CommandListUpdateAction commandUpdate = jda.updateCommands()
                 .addCommands(slash("setseverechannel", "Sets the channel for severe thunderstorm alerts")
                         .addOption(STRING, "channel", "Channel ID or mention", true)
                         .setIntegrationTypes(IntegrationType.ALL))
@@ -120,9 +139,16 @@ public class Application extends ListenerAdapter {
                 .addCommands(slash("setreportchannel", "Sets the channel for the automated 11:59 PM UTC daily report")
                         .addOption(STRING, "channel", "Channel ID or mention", true)
                         .setIntegrationTypes(IntegrationType.ALL))
-                .addCommands(slash("getoutlookone", "Get Day 1 Outlook")
-                        .setIntegrationTypes(IntegrationType.ALL))
-                .queue();
+                .addCommands(slash("setoutlookchannel", "Sets the channel for automatic SPC Day 1-3 Outlook updates")
+                        .addOption(STRING, "channel", "Channel ID or mention", true)
+                        .setIntegrationTypes(IntegrationType.ALL));
+
+        for (Outlooks.Day day : Outlooks.Day.values()) {
+            commandUpdate.addCommands(slash(day.command(), day.description())
+                    .setIntegrationTypes(IntegrationType.ALL));
+        }
+
+        commandUpdate.queue();
 
         logger.info("Bot is ready");
     }
@@ -271,6 +297,153 @@ public class Application extends ListenerAdapter {
 
         } catch (Exception e) {
             logger.error("Error during alert check", e);
+        }
+    }
+
+    /**
+     * Polls the SPC Day 1-3 categorical outlooks and posts the updated image to each guild's
+     * "outlook" channel whenever a new outlook is issued. The first observation of each day is
+     * recorded silently so a restart doesn't replay the current outlooks.
+     */
+    private void checkOutlooks() {
+        if (guildChannels.isEmpty()) return;
+
+        try {
+            boolean dirty = false;
+            for (Outlooks.Day day : List.of(Outlooks.Day.ONE, Outlooks.Day.TWO, Outlooks.Day.THREE)) {
+                String issuance = Outlooks.fetchIssuanceId(day);
+                if (issuance == null) continue;
+
+                String previous = outlookIssuance.put(day.number(), issuance);
+                if (previous == null) {
+                    dirty = true;
+                    continue;
+                }
+                if (issuance.equals(previous)) continue;
+
+                dirty = true;
+                logger.info("New SPC Day {} outlook issued: {} (was {})", day.number(), issuance, previous);
+
+                byte[] image;
+                try {
+                    image = Outlooks.fetch(day);
+                } catch (Exception e) {
+                    logger.error("Failed to fetch Day {} outlook image: {}", day.number(), e.getMessage());
+                    continue;
+                }
+
+                Instant issued = Outlooks.issuanceInstant(issuance);
+                String message = buildOutlookMessage(day, issued, true);
+
+                for (Map.Entry<Long, Map<String, Long>> guildEntry : guildChannels.entrySet()) {
+                    long guildId = guildEntry.getKey();
+                    Long channelId = guildEntry.getValue().get("outlook");
+                    if (channelId == null) continue;
+
+                    MessageCreateAction target;
+                    ThreadChannel thread = resolveDailyOutlookThread(channelId, guildId);
+                    if (thread != null) {
+                        target = thread.sendMessage(message);
+                    } else {
+                        TextChannel channel = jda.getTextChannelById(channelId);
+                        if (channel == null) {
+                            logger.warn("Outlook channel {} not usable for guild {}", channelId, guildId);
+                            continue;
+                        }
+                        target = channel.sendMessage(message);
+                    }
+                    target.addFiles(FileUpload.fromData(image, day.fileName()))
+                            .queue(
+                                    msg -> logger.info("Posted Day {} outlook to guild {}", day.number(), guildId),
+                                    err -> logger.error("Failed to post Day {} outlook to guild {}: {}", day.number(), guildId, err.getMessage())
+                            );
+                }
+            }
+
+            if (dirty) saveConfig();
+
+        } catch (Exception e) {
+            logger.error("Error during outlook check", e);
+        }
+    }
+
+    /**
+     * Builds the text that accompanies an outlook image. Includes a Discord dynamic timestamp
+     * ({@code <t:…>}, which each viewer sees in their own local time) plus a fixed UTC string so
+     * the exact issuance/post time is searchable.
+     */
+    private String buildOutlookMessage(Outlooks.Day day, Instant issued, boolean updated) {
+        StringBuilder sb = new StringBuilder("**SPC Day ").append(day.number())
+                .append(" Convective Outlook**");
+        if (updated) sb.append(" — updated");
+        sb.append('\n');
+
+        if (issued != null) {
+            long epoch = issued.getEpochSecond();
+            sb.append("**Issued:** <t:").append(epoch).append(":F> (<t:").append(epoch).append(":R>) · `")
+                    .append(UTC_STAMP.format(issued)).append('`');
+        } else {
+            Instant now = Instant.now();
+            sb.append("**Posted:** <t:").append(now.getEpochSecond()).append(":F> · `")
+                    .append(UTC_STAMP.format(now)).append('`');
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Returns the thread that the given guild's outlook updates for the current UTC day should be
+     * posted into, creating it on first use. Works whether the configured "outlook" channel is a
+     * forum channel (a forum post is created) or a text channel (a public thread is created).
+     * Returns {@code null} if no thread can be created, in which case the caller should fall back to
+     * posting in the channel directly.
+     */
+    private ThreadChannel resolveDailyOutlookThread(long channelId, long guildId) {
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        String dateKey = today.toString();
+        Map<String, Long> byDate = outlookThreads.computeIfAbsent(guildId, k -> new ConcurrentHashMap<>());
+
+        Long existingId = byDate.get(dateKey);
+        if (existingId != null) {
+            ThreadChannel existing = jda.getThreadChannelById(existingId);
+            if (existing != null) return existing;
+        }
+
+        String name = "SPC Outlooks — " + OUTLOOK_THREAD_DATE.format(today);
+        try {
+            ThreadChannel thread;
+            ForumChannel forum = jda.getForumChannelById(channelId);
+            if (forum != null) {
+                String intro = "Daily SPC Day 1–3 Convective Outlook thread for "
+                        + OUTLOOK_THREAD_DATE.format(today)
+                        + ". Each update below is timestamped in your local time and in UTC.";
+                thread = forum.createForumPost(name, MessageCreateData.fromContent(intro))
+                        .complete()
+                        .getThreadChannel();
+            } else {
+                TextChannel text = jda.getTextChannelById(channelId);
+                if (text == null) {
+                    logger.warn("Outlook channel {} is neither a forum nor a text channel (guild {})", channelId, guildId);
+                    return null;
+                }
+                thread = text.createThreadChannel(name)
+                        .setAutoArchiveDuration(ThreadChannel.AutoArchiveDuration.TIME_1_WEEK)
+                        .complete();
+            }
+
+            byDate.keySet().removeIf(k -> {
+                try {
+                    return LocalDate.parse(k).isBefore(today.minusDays(7));
+                } catch (RuntimeException e) {
+                    return true;
+                }
+            });
+            byDate.put(dateKey, thread.getIdLong());
+            saveConfig();
+            logger.info("Created daily outlook thread '{}' for guild {}", name, guildId);
+            return thread;
+        } catch (Exception e) {
+            logger.error("Failed to create daily outlook thread for guild {}: {}", guildId, e.getMessage());
+            return null;
         }
     }
 
@@ -434,6 +607,24 @@ public class Application extends ListenerAdapter {
             return;
         }
 
+        Outlooks.Day outlookDay = Outlooks.Day.fromCommand(event.getName());
+        if (outlookDay != null) {
+            event.deferReply().queue();
+            try {
+                byte[] image = Outlooks.fetch(outlookDay);
+                Instant issued = Outlooks.issuanceInstant(Outlooks.fetchIssuanceId(outlookDay));
+                event.getHook()
+                        .sendMessage(buildOutlookMessage(outlookDay, issued, false))
+                        .addFiles(FileUpload.fromData(image, outlookDay.fileName()))
+                        .queue();
+            } catch (Exception e) {
+                logger.error("Failed to fetch Day {} outlook: {}", outlookDay.number(), e.getMessage());
+                event.getHook().sendMessage("Couldn't fetch the Day " + outlookDay.number()
+                        + " outlook right now. Try again shortly.").setEphemeral(true).queue();
+            }
+            return;
+        }
+
         if (event.getGuild() == null) return;
 
         if ("gettempestobs".equals(event.getName())) {
@@ -457,6 +648,7 @@ public class Application extends ListenerAdapter {
             case "setfloodchannel"   -> "flood";
             case "setwatchchannel"   -> "watch";
             case "setreportchannel"  -> "report";
+            case "setoutlookchannel" -> "outlook";
             default -> null;
         };
 
@@ -472,9 +664,11 @@ public class Application extends ListenerAdapter {
         }
 
         long channelId = Long.parseLong(raw);
-        TextChannel channel = jda.getTextChannelById(channelId);
-        if (channel == null) {
-            event.reply("Channel not found — make sure the bot can see that channel.").setEphemeral(true).queue();
+        GuildChannel channel = jda.getGuildChannelById(channelId);
+        boolean forumOk = "outlook".equals(alertType) && channel instanceof ForumChannel;
+        if (channel == null || !(channel instanceof TextChannel || forumOk)) {
+            event.reply("Channel not found or unsupported — pick a text channel the bot can see"
+                    + " (the outlook channel may also be a forum channel).").setEphemeral(true).queue();
             return;
         }
 
@@ -514,6 +708,18 @@ public class Application extends ListenerAdapter {
             });
             root.set("postedItems", posted);
 
+            ObjectNode outlooks = mapper.createObjectNode();
+            outlookIssuance.forEach((day, id) -> outlooks.put(String.valueOf(day), id));
+            root.set("outlookIssuance", outlooks);
+
+            ObjectNode threads = mapper.createObjectNode();
+            outlookThreads.forEach((guildId, byDate) -> {
+                ObjectNode dateNode = mapper.createObjectNode();
+                byDate.forEach(dateNode::put);
+                threads.set(String.valueOf(guildId), dateNode);
+            });
+            root.set("outlookThreads", threads);
+
             mapper.writeValue(new File(CONFIG_FILE), root);
         } catch (Exception e) {
             logger.error("Failed to save config", e);
@@ -549,6 +755,19 @@ public class Application extends ListenerAdapter {
                     postedItems.put(guildId, ids);
                 }
 
+                for (Map.Entry<String, JsonNode> e : root.path("outlookIssuance").properties()) {
+                    outlookIssuance.put(Integer.parseInt(e.getKey()), e.getValue().asText());
+                }
+
+                for (Map.Entry<String, JsonNode> guildEntry : root.path("outlookThreads").properties()) {
+                    long guildId = Long.parseLong(guildEntry.getKey());
+                    Map<String, Long> byDate = new ConcurrentHashMap<>();
+                    for (Map.Entry<String, JsonNode> d : guildEntry.getValue().properties()) {
+                        byDate.put(d.getKey(), d.getValue().asLong());
+                    }
+                    outlookThreads.put(guildId, byDate);
+                }
+
                 logger.info("Loaded {} guild configs, {} seen PIDs", guildChannels.size(), globalSeenPids.size());
             } catch (Exception e) {
                 logger.error("Failed to load config", e);
@@ -565,12 +784,23 @@ public class Application extends ListenerAdapter {
         channelDefaults.put("flood",   1514663611035943073L);
         channelDefaults.put("watch",   1518727400278458440L);
         channelDefaults.put("report",  1519027873686487101L);
+        channelDefaults.put("outlook", 1547277391678668810L);
 
         long defaultGuildId = 828991980805685258L;
         Map<String, Long> guildMap = guildChannels.computeIfAbsent(defaultGuildId, k -> new ConcurrentHashMap<>());
         postedItems.computeIfAbsent(defaultGuildId, k -> ConcurrentHashMap.newKeySet());
 
         boolean changed = false;
+
+        // Outlook posting moved to the forum channel; migrate configs still pointing at the old text channel.
+        for (Map<String, Long> typeMap : guildChannels.values()) {
+            if (Long.valueOf(1546921737319354498L).equals(typeMap.get("outlook"))) {
+                typeMap.put("outlook", 1547277391678668810L);
+                logger.info("Migrated outlook channel to forum channel 1547277391678668810");
+                changed = true;
+            }
+        }
+
         for (Map.Entry<String, Long> def : channelDefaults.entrySet()) {
             if (!guildMap.containsKey(def.getKey())) {
                 guildMap.put(def.getKey(), def.getValue());

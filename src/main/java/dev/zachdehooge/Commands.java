@@ -29,8 +29,10 @@ public class Commands {
         commands.addCommands(slash("gettempestobs", "Get Tempest observations")
         .setIntegrationTypes(IntegrationType.ALL));
 
-        commands.addCommands(slash("getoutlookone", "Get Day 1 Outlook")
-        .setIntegrationTypes(IntegrationType.ALL));
+        for (dev.zachdehooge.Utilities.Outlooks.Day day : dev.zachdehooge.Utilities.Outlooks.Day.values()) {
+            commands.addCommands(slash(day.command(), day.description())
+            .setIntegrationTypes(IntegrationType.ALL));
+        }
 
         commands.queue();
     }
